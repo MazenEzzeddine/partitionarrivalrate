@@ -7,6 +7,14 @@ public class Partition {
     private Long currentLastOffset;
     private Long previousLastOffset;
 
+
+
+
+
+    //private Long[] offsetWindow = new Long[4] ;
+    private double[] arrivalRateWindow = new double[4];
+    private Long[] lagWindow = new Long[4];
+
     public Long getCurrentLastOffset() {
         return currentLastOffset;
     }
@@ -29,6 +37,31 @@ public class Partition {
         this.arrivalRate = arrivalRate;
         this.currentLastOffset =0L;
         this.previousLastOffset =0L;
+
+        for(int i=0; i<4; i++){
+            //offsetWindow[i] = 0L;
+            arrivalRateWindow[i] = 0.0;
+            lagWindow[i]=0L;
+        }
+    }
+
+
+    public double getAverageArrivalRate(){
+        double averageArrivalRate =0.0;
+        for(int i=0; i<4; i++) {
+            //offsetWindow[i] = 0L;
+            averageArrivalRate += arrivalRateWindow[i];
+        }
+        return averageArrivalRate/4.0;
+    }
+
+    public double getAverageLag(){
+        Long averageLag =0L;
+        for(int i=0; i<4; i++) {
+            //offsetWindow[i] = 0L;
+            averageLag += lagWindow[i];
+        }
+        return (double)averageLag/4.0;
     }
 
     public int getId() {
@@ -45,6 +78,12 @@ public class Partition {
 
     public void setLag(long lag) {
         this.lag = lag;
+
+        for(int i=2; i>=0; i--){
+            lagWindow[i+1] = lagWindow[i];
+        }
+
+        lagWindow[0] = lag;
     }
 
     public double getArrivalRate() {
@@ -53,6 +92,12 @@ public class Partition {
 
     public void setArrivalRate(double arrivalRate) {
         this.arrivalRate = arrivalRate;
+
+        for(int i=2; i>=0; i--){
+            arrivalRateWindow[i+1] = arrivalRateWindow[i];
+        }
+
+        arrivalRateWindow[0] = arrivalRate;
     }
 
 
@@ -62,7 +107,9 @@ public class Partition {
                 "id=" + id +
                 ", lag=" + lag +
                 ", arrivalRate=" + arrivalRate +
-                '}';
+                ", averageArrivalRate=" + getAverageArrivalRate() +
+                ", averageLag=" + getAverageLag() +
+        '}';
     }
 
 
