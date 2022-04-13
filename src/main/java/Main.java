@@ -1,5 +1,6 @@
 import org.apache.kafka.clients.admin.*;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
+import org.apache.kafka.common.KafkaFuture;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.TopicPartitionInfo;
 import org.apache.logging.log4j.LogManager;
@@ -95,8 +96,40 @@ public class Main {
         for(TopicPartitionInfo p: td.partitions()){
             partitions.add(new Partition(p.partition(), 0, 0));
         }
-
         log.info("topic has the following partitions {}", td.partitions().size() );
+    }
+
+
+
+
+
+    private static void queryConsumerGroup() throws ExecutionException, InterruptedException {
+        DescribeConsumerGroupsResult describeConsumerGroupsResult =
+                admin.describeConsumerGroups(Collections.singletonList(Main.CONSUMER_GROUP));
+        KafkaFuture<Map<String, ConsumerGroupDescription>> futureOfDescribeConsumerGroupsResult =
+                describeConsumerGroupsResult.all();
+
+
+        consumerGroupDescriptionMap = futureOfDescribeConsumerGroupsResult.get();
+        log.info("The consumer group {} is in state {}", Main.CONSUMER_GROUP,
+                consumerGroupDescriptionMap.get(Main.CONSUMER_GROUP).state().toString());
+
+
+        for (MemberDescription memberDescription : consumerGroupDescriptionMap.get(Main.CONSUMER_GROUP).members()) {
+
+
+                log.info("Calling the consumer {} for its consumption rate ", memberDescription.host());
+
+            MemberAssignment memberAssignment = memberDescription.assignment();
+            for (TopicPartition tp : memberAssignment.topicPartitions()) {
+
+                log.info("member consumerId {} clientId {} is assigned partition {}", memberDescription.consumerId(),
+                        memberDescription.clientId(), tp.partition());
+            }
+
+        }
+
+
 
     }
 
@@ -104,35 +137,19 @@ public class Main {
 
 
     private static void getCommittedLatestOffsetsAndLag() throws ExecutionException, InterruptedException {
-        //get committed  offsets
-
-
         committedOffsets = admin.listConsumerGroupOffsets(CONSUMER_GROUP)
                 .partitionsToOffsetAndMetadata().get();
 
-
-
-
-
-
-
-
-
         Map<TopicPartition, OffsetSpec> requestLatestOffsets = new HashMap<>();
-       // Map<TopicPartition, OffsetSpec> requestComittedOffsets = new HashMap<>();
-
 
         for(TopicPartitionInfo p :  td.partitions()){
             requestLatestOffsets.put(new TopicPartition(topic, p.partition()), OffsetSpec.latest());
-
         }
-
 
         Map<TopicPartition, ListOffsetsResult.ListOffsetsResultInfo> latestOffsets =
                 admin.listOffsets(requestLatestOffsets).all().get();
 
         for(TopicPartitionInfo p :  td.partitions()) {
-
             TopicPartition t = new  TopicPartition(topic, p.partition());
             long latestOffset = latestOffsets.get(t).offset();
             long committedoffset = committedOffsets.get(t).offset();
@@ -140,11 +157,10 @@ public class Main {
             partitions.get(p.partition()).setPreviousLastOffset(partitions.get(p.partition()).getCurrentLastOffset());
             partitions.get(p.partition()).setCurrentLastOffset(latestOffset);
             partitions.get(p.partition()).setLag(latestOffset-committedoffset);
-
         }
-
         if(!firstIteration){
             computeTotalArrivalRate();
+            queryConsumerGroup();
         }else{
             firstIteration = false;
         }
@@ -168,12 +184,8 @@ public class Main {
             totallag +=  p.getLag();
         }
 
-        log.info("totalArrivalRate {}",
-               totalArrivalRate);
-
-
-        log.info("totallag {}",
-                totallag);
+        log.info("totalArrivalRate {}", totalArrivalRate);
+        log.info("totallag {}", totallag);
 
     }
 
