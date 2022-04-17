@@ -1,3 +1,5 @@
+import io.grpc.ManagedChannel;
+import io.grpc.ManagedChannelBuilder;
 import org.apache.kafka.clients.admin.*;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.KafkaFuture;
@@ -5,6 +7,9 @@ import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.TopicPartitionInfo;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hps.RateRequest;
+import org.hps.RateResponse;
+import org.hps.RateServiceGrpc;
 
 
 import java.time.Instant;
@@ -55,6 +60,12 @@ public class Controller implements Runnable{
     static ArrayList<Partition> partitions= new ArrayList<>();
 
 
+    static double currenttotalArrivalRate = 0.0;
+    static double previoustotalArrivalRate = 0.0;
+
+
+
+
 
 
     private static void readEnvAndCrateAdminClient() throws ExecutionException, InterruptedException {
@@ -88,26 +99,45 @@ public class Controller implements Runnable{
 
 
         consumerGroupDescriptionMap = futureOfDescribeConsumerGroupsResult.get();
-        log.info("The consumer group {} is in state {}", Controller.CONSUMER_GROUP,
-                consumerGroupDescriptionMap.get(Controller.CONSUMER_GROUP).state().toString());
+       /* log.info("The consumer group {} is in state {}", Controller.CONSUMER_GROUP,
+                consumerGroupDescriptionMap.get(Controller.CONSUMER_GROUP).state().toString());*/
 
 
         for (MemberDescription memberDescription : consumerGroupDescriptionMap.get(Controller.CONSUMER_GROUP).members()) {
 
 
-                log.info("Calling the consumer {} for its consumption rate ", memberDescription.host());
+                //log.info("Calling the consumer {} for its consumption rate ", memberDescription.host());
 
-            MemberAssignment memberAssignment = memberDescription.assignment();
+            float rate = callForConsumptionRate(memberDescription.host());
+
+          /*  MemberAssignment memberAssignment = memberDescription.assignment();
             for (TopicPartition tp : memberAssignment.topicPartitions()) {
 
                 log.info("member consumerId {} clientId {} is assigned partition {}", memberDescription.consumerId(),
                         memberDescription.clientId(), tp.partition());
-            }
+            }*/
 
         }
 
 
 
+    }
+
+
+
+    private static float callForConsumptionRate(String host) {
+        ManagedChannel managedChannel = ManagedChannelBuilder.forAddress(host.substring(1), 5002)
+                .usePlaintext()
+                .build();
+        RateServiceGrpc.RateServiceBlockingStub rateServiceBlockingStub
+                = RateServiceGrpc.newBlockingStub(managedChannel);
+        RateRequest rateRequest = RateRequest.newBuilder().setRate("Give me your rate")
+                .build();
+        //log.info("connected to server {}", host);
+        RateResponse rateResponse = rateServiceBlockingStub.consumptionRate(rateRequest);
+        //log.info("Received response on the rate: " + rateResponse.getRate());
+        managedChannel.shutdown();
+        return rateResponse.getRate();
     }
 
 
@@ -150,20 +180,54 @@ public class Controller implements Runnable{
 
     private static void computeTotalArrivalRate() throws ExecutionException, InterruptedException {
 
-        double totalArrivalRate =0;
+        double totalArrivalRate = 0;
         long totallag = 0;
 
-        for(Partition p: partitions) {
-            p.setArrivalRate((double)(p.getCurrentLastOffset()-p.getPreviousLastOffset())/doublesleep);
+
+
+        for (Partition p : partitions) {
             log.info(p.toString());
 
-           totalArrivalRate +=  p.getArrivalRate();
-            totallag +=  p.getLag();
+
+
+            totalArrivalRate +=  (p.getCurrentLastOffset() - p.getPreviousLastOffset()) / doublesleep;
+            totallag += p.getLag();
         }
 
         log.info("totalArrivalRate {}", totalArrivalRate);
         log.info("totallag {}", totallag);
 
+
+        /////////////check sampling issues////////
+
+        log.info("current {}", currenttotalArrivalRate);
+        log.info("previous {}", previoustotalArrivalRate);
+        log.info("currenttotalArrivalRate-previoustotalArrivalRate))/doublesleep [rate of change] rate {}",
+                (((totalArrivalRate - currenttotalArrivalRate)) / doublesleep));
+
+
+        if (Math.abs((totalArrivalRate - currenttotalArrivalRate)) / doublesleep > 15.0) {
+            log.info("Looks like sampling boundary issue");
+
+            log.info("currenttotalArrivalRate-previoustotalArrivalRate))/doublesleep  {}",
+                    ((totalArrivalRate - currenttotalArrivalRate)) / doublesleep);
+
+            log.info("ignoring this sample");
+
+
+            } else {
+
+            previoustotalArrivalRate = currenttotalArrivalRate;
+            currenttotalArrivalRate = totalArrivalRate;
+
+
+            for (Partition p : partitions) {
+                p.setPreviousArrivalRate(p.getArrivalRate());
+                p.setArrivalRate((double) (p.getCurrentLastOffset() - p.getPreviousLastOffset()) / doublesleep);
+            }
+
+
+        }
     }
 
     @Override

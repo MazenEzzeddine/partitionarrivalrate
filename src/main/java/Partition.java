@@ -7,9 +7,24 @@ public class Partition {
     private Long currentLastOffset;
     private Long previousLastOffset;
 
+    public double getPreviousArrivalRate() {
+        return previousArrivalRate;
+    }
+
+    public void setPreviousArrivalRate(double previousArrivalRate) {
+        this.previousArrivalRate = previousArrivalRate;
+    }
+
+    private double previousArrivalRate;
 
 
+    public double[] getArrivalRateWindow() {
+        return arrivalRateWindow;
+    }
 
+    public void setArrivalRateWindow(double[] arrivalRateWindow) {
+        this.arrivalRateWindow = arrivalRateWindow;
+    }
 
     //private Long[] offsetWindow = new Long[4] ;
     private double[] arrivalRateWindow = new double[4];
