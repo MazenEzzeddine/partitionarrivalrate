@@ -17,10 +17,7 @@ import java.util.*;
 import java.util.concurrent.ExecutionException;
 
 
-
-
-
-public class Controller implements Runnable{
+public class Controller implements Runnable {
 
 
     private static final Logger log = LogManager.getLogger(Controller.class);
@@ -28,8 +25,6 @@ public class Controller implements Runnable{
     public static String CONSUMER_GROUP;
     public static int numberOfPartitions;
     public static AdminClient admin = null;
-
-
 
 
     static Long sleep;
@@ -51,21 +46,17 @@ public class Controller implements Runnable{
 
     static Instant lastUpScaleDecision;
     static Instant lastDownScaleDecision;
-    static boolean firstIteration= true;
+    static boolean firstIteration = true;
 
-    static  TopicDescription td;
+    static TopicDescription td;
 
     static DescribeTopicsResult tdr;
 
-    static ArrayList<Partition> partitions= new ArrayList<>();
+    static ArrayList<Partition> partitions = new ArrayList<>();
 
 
     static double currenttotalArrivalRate = 0.0;
     static double previoustotalArrivalRate = 0.0;
-
-
-
-
 
 
     private static void readEnvAndCrateAdminClient() throws ExecutionException, InterruptedException {
@@ -78,17 +69,14 @@ public class Controller implements Runnable{
         Properties props = new Properties();
         props.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, BOOTSTRAP_SERVERS);
         admin = AdminClient.create(props);
-        tdr =  admin.describeTopics(Collections.singletonList(topic));
-        td =tdr.values().get(topic).get();
+        tdr = admin.describeTopics(Collections.singletonList(topic));
+        td = tdr.values().get(topic).get();
 
-        for(TopicPartitionInfo p: td.partitions()){
+        for (TopicPartitionInfo p : td.partitions()) {
             partitions.add(new Partition(p.partition(), 0, 0));
         }
-        log.info("topic has the following partitions {}", td.partitions().size() );
+        log.info("topic has the following partitions {}", td.partitions().size());
     }
-
-
-
 
 
     private static void queryConsumerGroup() throws ExecutionException, InterruptedException {
@@ -106,7 +94,7 @@ public class Controller implements Runnable{
         for (MemberDescription memberDescription : consumerGroupDescriptionMap.get(Controller.CONSUMER_GROUP).members()) {
 
 
-                //log.info("Calling the consumer {} for its consumption rate ", memberDescription.host());
+            //log.info("Calling the consumer {} for its consumption rate ", memberDescription.host());
 
             float rate = callForConsumptionRate(memberDescription.host());
 
@@ -120,9 +108,7 @@ public class Controller implements Runnable{
         }
 
 
-
     }
-
 
 
     private static float callForConsumptionRate(String host) {
@@ -141,41 +127,35 @@ public class Controller implements Runnable{
     }
 
 
-
-
     private static void getCommittedLatestOffsetsAndLag() throws ExecutionException, InterruptedException {
         committedOffsets = admin.listConsumerGroupOffsets(CONSUMER_GROUP)
                 .partitionsToOffsetAndMetadata().get();
 
         Map<TopicPartition, OffsetSpec> requestLatestOffsets = new HashMap<>();
 
-        for(TopicPartitionInfo p :  td.partitions()){
+        for (TopicPartitionInfo p : td.partitions()) {
             requestLatestOffsets.put(new TopicPartition(topic, p.partition()), OffsetSpec.latest());
         }
 
         Map<TopicPartition, ListOffsetsResult.ListOffsetsResultInfo> latestOffsets =
                 admin.listOffsets(requestLatestOffsets).all().get();
 
-        for(TopicPartitionInfo p :  td.partitions()) {
-            TopicPartition t = new  TopicPartition(topic, p.partition());
+        for (TopicPartitionInfo p : td.partitions()) {
+            TopicPartition t = new TopicPartition(topic, p.partition());
             long latestOffset = latestOffsets.get(t).offset();
             long committedoffset = committedOffsets.get(t).offset();
 
             partitions.get(p.partition()).setPreviousLastOffset(partitions.get(p.partition()).getCurrentLastOffset());
             partitions.get(p.partition()).setCurrentLastOffset(latestOffset);
-            partitions.get(p.partition()).setLag(latestOffset-committedoffset);
+            partitions.get(p.partition()).setLag(latestOffset - committedoffset);
         }
-        if(!firstIteration){
+        if (!firstIteration) {
             computeTotalArrivalRate();
             queryConsumerGroup();
-        }else{
+        } else {
             firstIteration = false;
         }
     }
-
-
-
-
 
 
     private static void computeTotalArrivalRate() throws ExecutionException, InterruptedException {
@@ -184,49 +164,34 @@ public class Controller implements Runnable{
         long totallag = 0;
 
 
-
         for (Partition p : partitions) {
             log.info(p.toString());
-
-
-
-            totalArrivalRate +=  (p.getCurrentLastOffset() - p.getPreviousLastOffset()) / doublesleep;
+            totalArrivalRate += (p.getCurrentLastOffset() - p.getPreviousLastOffset()) / doublesleep;
             totallag += p.getLag();
         }
 
-        log.info("totalArrivalRate {}", totalArrivalRate);
+        log.info("current totalArrivalRate from this iteration/sampling {}", totalArrivalRate);
         log.info("totallag {}", totallag);
 
 
         /////////////check sampling issues////////
 
-        log.info("current {}", currenttotalArrivalRate);
-        log.info("previous {}", previoustotalArrivalRate);
-        log.info("currenttotalArrivalRate-previoustotalArrivalRate))/doublesleep [rate of change] rate {}",
+        log.info("current total arrival rate from previous sampling {}", currenttotalArrivalRate);
+        log.info("previous total arrival rate from previous sampling {}", previoustotalArrivalRate);
+        log.info("Math.abs((totalArrivalRate - currenttotalArrivalRate)) / doublesleep {}",
                 (((totalArrivalRate - currenttotalArrivalRate)) / doublesleep));
 
 
         if (Math.abs((totalArrivalRate - currenttotalArrivalRate)) / doublesleep > 15.0) {
             log.info("Looks like sampling boundary issue");
-
-            log.info("currenttotalArrivalRate-previoustotalArrivalRate))/doublesleep  {}",
-                    ((totalArrivalRate - currenttotalArrivalRate)) / doublesleep);
-
             log.info("ignoring this sample");
-
-
-            } else {
-
+        } else {
             previoustotalArrivalRate = currenttotalArrivalRate;
             currenttotalArrivalRate = totalArrivalRate;
-
-
             for (Partition p : partitions) {
                 p.setPreviousArrivalRate(p.getArrivalRate());
                 p.setArrivalRate((double) (p.getCurrentLastOffset() - p.getPreviousLastOffset()) / doublesleep);
             }
-
-
         }
     }
 
@@ -243,7 +208,7 @@ public class Controller implements Runnable{
         lastUpScaleDecision = Instant.now();
         lastDownScaleDecision = Instant.now();
 
-        doublesleep = (double) sleep/1000.0;
+        doublesleep = (double) sleep / 1000.0;
 
 
         while (true) {
