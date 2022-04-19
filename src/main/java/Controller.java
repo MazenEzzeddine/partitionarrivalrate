@@ -1,3 +1,7 @@
+import io.fabric8.kubernetes.api.model.ServiceAccount;
+import io.fabric8.kubernetes.api.model.ServiceAccountBuilder;
+import io.fabric8.kubernetes.client.DefaultKubernetesClient;
+import io.fabric8.kubernetes.client.KubernetesClient;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import org.apache.kafka.clients.admin.*;
@@ -12,6 +16,7 @@ import org.hps.RateResponse;
 import org.hps.RateServiceGrpc;
 
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
@@ -58,6 +63,10 @@ public class Controller implements Runnable {
     static double currenttotalArrivalRate = 0.0;
     static double previoustotalArrivalRate = 0.0;
 
+    static double dynamicTotalMaxConsumptionRate =0.0;
+
+    static double dynamicAverageMaxConsumptionRate = 0.0;
+
 
     private static void readEnvAndCrateAdminClient() throws ExecutionException, InterruptedException {
         sleep = Long.valueOf(System.getenv("SLEEP"));
@@ -71,6 +80,7 @@ public class Controller implements Runnable {
         admin = AdminClient.create(props);
         tdr = admin.describeTopics(Collections.singletonList(topic));
         td = tdr.values().get(topic).get();
+
 
         for (TopicPartitionInfo p : td.partitions()) {
             partitions.add(new Partition(p.partition(), 0, 0));
@@ -87,26 +97,14 @@ public class Controller implements Runnable {
 
 
         consumerGroupDescriptionMap = futureOfDescribeConsumerGroupsResult.get();
-       /* log.info("The consumer group {} is in state {}", Controller.CONSUMER_GROUP,
-                consumerGroupDescriptionMap.get(Controller.CONSUMER_GROUP).state().toString());*/
 
 
+        dynamicTotalMaxConsumptionRate =0.0;
         for (MemberDescription memberDescription : consumerGroupDescriptionMap.get(Controller.CONSUMER_GROUP).members()) {
-
-
-            //log.info("Calling the consumer {} for its consumption rate ", memberDescription.host());
-
-            float rate = callForConsumptionRate(memberDescription.host());
-
-          /*  MemberAssignment memberAssignment = memberDescription.assignment();
-            for (TopicPartition tp : memberAssignment.topicPartitions()) {
-
-                log.info("member consumerId {} clientId {} is assigned partition {}", memberDescription.consumerId(),
-                        memberDescription.clientId(), tp.partition());
-            }*/
-
+            log.info("Calling the consumer {} for its consumption rate ", memberDescription.host());
+           float rate = callForConsumptionRate(memberDescription.host());
+            dynamicTotalMaxConsumptionRate += rate;
         }
-
 
     }
 
@@ -119,9 +117,9 @@ public class Controller implements Runnable {
                 = RateServiceGrpc.newBlockingStub(managedChannel);
         RateRequest rateRequest = RateRequest.newBuilder().setRate("Give me your rate")
                 .build();
-        //log.info("connected to server {}", host);
+        log.info("connected to server {}", host);
         RateResponse rateResponse = rateServiceBlockingStub.consumptionRate(rateRequest);
-        //log.info("Received response on the rate: " + rateResponse.getRate());
+        log.info("Received response on the rate: " + rateResponse.getRate());
         managedChannel.shutdown();
         return rateResponse.getRate();
     }
@@ -151,7 +149,6 @@ public class Controller implements Runnable {
         }
         if (!firstIteration) {
             computeTotalArrivalRate();
-            queryConsumerGroup();
         } else {
             firstIteration = false;
         }
@@ -174,7 +171,7 @@ public class Controller implements Runnable {
         log.info("totallag {}", totallag);
 
 
-        /////////////check sampling issues////////
+        /////////////check sampling issues//////////////
 
         log.info("current total arrival rate from previous sampling {}", currenttotalArrivalRate);
         log.info("previous total arrival rate from previous sampling {}", previoustotalArrivalRate);
@@ -182,7 +179,7 @@ public class Controller implements Runnable {
                 (((totalArrivalRate - currenttotalArrivalRate)) / doublesleep));
 
 
-        if (Math.abs((totalArrivalRate - currenttotalArrivalRate)) / doublesleep > 15.0) {
+        if (Math.abs((totalArrivalRate - currenttotalArrivalRate)) / doublesleep > 20.0) {
             log.info("Looks like sampling boundary issue");
             log.info("ignoring this sample");
         } else {
@@ -191,6 +188,173 @@ public class Controller implements Runnable {
             for (Partition p : partitions) {
                 p.setPreviousArrivalRate(p.getArrivalRate());
                 p.setArrivalRate((double) (p.getCurrentLastOffset() - p.getPreviousLastOffset()) / doublesleep);
+            }
+        }
+
+        queryConsumerGroup();
+        youMightWanttoScaleDynamically(totalArrivalRate);
+
+
+         //youMightWanttoScale();
+    }
+
+
+    private static void youMightWanttoScaleDynamically (double totalArrivalRate) throws ExecutionException, InterruptedException {
+        log.info("Inside  youMightWanttoScaleDynamically");
+        int size = consumerGroupDescriptionMap.get(Controller.CONSUMER_GROUP).members().size();
+        log.info("current group size is {}", size);
+
+        if (Duration.between(lastUpScaleDecision, Instant.now()).toSeconds() >= 15 ) {
+            log.info("Upscale logic, Up scale cool down has ended");
+
+            if (upScaleLogicDynamic(totalArrivalRate, size)) {
+                return;
+            }
+        } else {
+            log.info("Not checking  upscale logic, Up scale cool down has not ended yet");
+        }
+
+
+
+
+        if (Duration.between(lastDownScaleDecision, Instant.now()).toSeconds() >= 15 ) {
+            log.info("DownScaling logic, Down scale cool down has ended");
+            downScaleLogicDynamic(totalArrivalRate, size);
+        }else {
+            log.info("Not checking  down scale logic, down scale cool down has not ended yet");
+        }
+
+
+    }
+
+
+
+    private static boolean upScaleLogicDynamic(double totalArrivalRate, int size) {
+
+        dynamicAverageMaxConsumptionRate = dynamicTotalMaxConsumptionRate / (double)(size);
+        log.info("dynamicAverageMaxConsumptionRate {}", dynamicAverageMaxConsumptionRate);
+        if ((totalArrivalRate ) > dynamicAverageMaxConsumptionRate) {
+            // log.info("Consumers are less than nb partition we can scale");
+
+            try (final KubernetesClient k8s = new DefaultKubernetesClient()) {
+                k8s.apps().deployments().inNamespace("default").withName("cons1persec").scale(size + 1);
+
+
+                log.info("Since  arrival rate {} is greater than  maximum consumption rate " +
+                        "{} ,  I up scaled  by one ", totalArrivalRate , dynamicAverageMaxConsumptionRate);
+
+                lastDownScaleDecision = Instant.now();
+                lastUpScaleDecision = Instant.now();
+
+                return true;
+            }
+
+        }
+        return false;
+    }
+
+
+
+
+    private static void downScaleLogicDynamic(double totalArrivalRate, int size) {
+
+        if(size == 1) return;
+        dynamicAverageMaxConsumptionRate = dynamicTotalMaxConsumptionRate / (double)(size);
+
+        log.info("dynamicAverageMaxConsumptionRate {}", dynamicAverageMaxConsumptionRate);
+        if ((totalArrivalRate ) < dynamicAverageMaxConsumptionRate) {
+
+            log.info("since  arrival rate {} is lower than maximum consumption rate " +
+                            " with size - 1  I down scaled  by one {}",
+                    totalArrivalRate , dynamicAverageMaxConsumptionRate);
+            try (final KubernetesClient k8s = new DefaultKubernetesClient()) {
+
+                int replicas = k8s.apps().deployments().inNamespace("default").withName("cons1persec").get().getSpec().getReplicas();
+                if (replicas > 1) {
+                    k8s.apps().deployments().inNamespace("default").withName("cons1persec").scale(replicas - 1);
+                    lastDownScaleDecision = Instant.now();
+                    lastUpScaleDecision = Instant.now();
+
+                } else {
+                    log.info("Not going to  down scale since replicas already one");
+                }
+            }
+        }
+    }
+
+
+    private static void youMightWanttoScale() throws ExecutionException, InterruptedException {
+        log.info("Inside you youMightWanttoScale");
+
+
+        if (Duration.between(lastUpScaleDecision, Instant.now()).toSeconds() >= 15 &&
+                Duration.between(lastDownScaleDecision, Instant.now()).toSeconds() >= 15) {
+            queryConsumerGroup();
+
+        }
+
+
+        if (Duration.between(lastUpScaleDecision, Instant.now()).toSeconds() >= 15 ) {
+            log.info("Upscale logic, Up scale cool down has ended");
+
+
+            upScaleLogic();
+            //why not returning
+        } else {
+            log.info("Not checking  upscale logic, Up scale cool down has not ended yet");
+        }
+
+
+        if (Duration.between(lastDownScaleDecision, Instant.now()).toSeconds() >= 15 ) {
+            log.info("DownScaling logic, Down scale cool down has ended");
+            downScaleLogic();
+        }else {
+            log.info("Not checking  down scale logic, down scale cool down has not ended yet");
+        }
+    }
+
+
+    private static void upScaleLogic() throws ExecutionException, InterruptedException {
+        int size = consumerGroupDescriptionMap.get(Controller.CONSUMER_GROUP).members().size();
+        log.info("curent group size is {}", size);
+
+        if (currenttotalArrivalRate  > size *poll) {
+            log.info("Consumers are less than nb partition we can scale");
+
+            try (final KubernetesClient k8s = new DefaultKubernetesClient()) {
+                k8s.apps().deployments().inNamespace("default").withName("cons1persec").scale(size + 1);
+
+
+                log.info("Since  arrival rate {} is greater than  maximum consumption rate " +
+                        "{} ,  I up scaled  by one ", currenttotalArrivalRate , size * poll);
+            }
+
+            lastUpScaleDecision = Instant.now();
+            lastDownScaleDecision = Instant.now();
+        }
+    }
+
+
+
+
+    private static void downScaleLogic() throws ExecutionException, InterruptedException {
+        int size = consumerGroupDescriptionMap.get(Controller.CONSUMER_GROUP).members().size();
+        if ((currenttotalArrivalRate) < (size - 1) * poll) {
+
+            log.info("since  arrival rate {} is lower than maximum consumption rate " +
+                            " with size - 1  I down scaled  by one {}",
+                    currenttotalArrivalRate , size * poll);
+            try (final KubernetesClient k8s = new DefaultKubernetesClient()) {
+
+                int replicas = k8s.apps().deployments().inNamespace("default").withName("cons1persec").get().getSpec().getReplicas();
+                if (replicas > 1) {
+                    k8s.apps().deployments().inNamespace("default").withName("cons1persec").scale(replicas - 1);
+                    lastDownScaleDecision = Instant.now();
+                    lastUpScaleDecision = Instant.now();
+
+                } else {
+                    log.info("Not going to  down scale since replicas already one");
+                }
             }
         }
     }
@@ -220,7 +384,6 @@ public class Controller implements Runnable {
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
-            //computeTotalArrivalRate();
 
             log.info("Sleeping for {} seconds", sleep / 1000.0);
             try {
