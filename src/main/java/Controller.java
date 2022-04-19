@@ -183,6 +183,22 @@ public class Controller implements Runnable {
     }
 
 
+    private static void youMightWanttoScaleUsingBinPack(){
+
+        int size = consumerGroupDescriptionMap.get(Controller.CONSUMER_GROUP).members().size();
+
+        dynamicAverageMaxConsumptionRate = dynamicTotalMaxConsumptionRate / (double)(size);
+        BinPackScaler bpscaler =new BinPackScaler(dynamicTotalMaxConsumptionRate,dynamicAverageMaxConsumptionRate,
+                partitions, size);
+
+        bpscaler.scaleAsPerBinPack();
+
+    }
+
+
+
+
+
     private static void youMightWanttoScaleDynamically (double totalArrivalRate) throws ExecutionException, InterruptedException {
         int size = consumerGroupDescriptionMap.get(Controller.CONSUMER_GROUP).members().size();
         log.info("current group size is {}", size);
@@ -212,7 +228,7 @@ public class Controller implements Runnable {
 
         dynamicAverageMaxConsumptionRate = dynamicTotalMaxConsumptionRate / (double)(size);
         log.info("dynamicAverageMaxConsumptionRate {}", dynamicAverageMaxConsumptionRate);
-        if ((totalArrivalRate ) > dynamicAverageMaxConsumptionRate) {
+        if (totalArrivalRate > dynamicAverageMaxConsumptionRate) {
             // log.info("Consumers are less than nb partition we can scale");
 
             try (final KubernetesClient k8s = new DefaultKubernetesClient()) {
