@@ -41,10 +41,7 @@ public class Controller implements Runnable {
     static Map<TopicPartition, OffsetAndMetadata> committedOffsets;
 
 
-    ////WIP TODO
-    public static Map<MemberDescription, Float> maxConsumptionRatePerConsumer = new HashMap<>();
-    public static Map<MemberDescription, Long> consumerToLag = new HashMap<>();
-    public static Instant lastDecision;
+
     static Map<String, ConsumerGroupDescription> consumerGroupDescriptionMap;
     ///////////////////////////////////////////////////////////////////////////
 
@@ -54,17 +51,13 @@ public class Controller implements Runnable {
     static boolean firstIteration = true;
 
     static TopicDescription td;
-
     static DescribeTopicsResult tdr;
-
     static ArrayList<Partition> partitions = new ArrayList<>();
 
 
     static double currenttotalArrivalRate = 0.0;
     static double previoustotalArrivalRate = 0.0;
-
     static double dynamicTotalMaxConsumptionRate =0.0;
-
     static double dynamicAverageMaxConsumptionRate = 0.0;
 
 
@@ -95,9 +88,7 @@ public class Controller implements Runnable {
         KafkaFuture<Map<String, ConsumerGroupDescription>> futureOfDescribeConsumerGroupsResult =
                 describeConsumerGroupsResult.all();
 
-
         consumerGroupDescriptionMap = futureOfDescribeConsumerGroupsResult.get();
-
 
         dynamicTotalMaxConsumptionRate =0.0;
         for (MemberDescription memberDescription : consumerGroupDescriptionMap.get(Controller.CONSUMER_GROUP).members()) {
@@ -105,7 +96,6 @@ public class Controller implements Runnable {
            float rate = callForConsumptionRate(memberDescription.host());
             dynamicTotalMaxConsumptionRate += rate;
         }
-
     }
 
 
@@ -130,11 +120,9 @@ public class Controller implements Runnable {
                 .partitionsToOffsetAndMetadata().get();
 
         Map<TopicPartition, OffsetSpec> requestLatestOffsets = new HashMap<>();
-
         for (TopicPartitionInfo p : td.partitions()) {
             requestLatestOffsets.put(new TopicPartition(topic, p.partition()), OffsetSpec.latest());
         }
-
         Map<TopicPartition, ListOffsetsResult.ListOffsetsResultInfo> latestOffsets =
                 admin.listOffsets(requestLatestOffsets).all().get();
 
@@ -160,7 +148,6 @@ public class Controller implements Runnable {
         double totalArrivalRate = 0;
         long totallag = 0;
 
-
         for (Partition p : partitions) {
             log.info(p.toString());
             totalArrivalRate += (p.getCurrentLastOffset() - p.getPreviousLastOffset()) / doublesleep;
@@ -170,9 +157,7 @@ public class Controller implements Runnable {
         log.info("current totalArrivalRate from this iteration/sampling {}", totalArrivalRate);
         log.info("totallag {}", totallag);
 
-
         /////////////check sampling issues//////////////
-
         log.info("current total arrival rate from previous sampling {}", currenttotalArrivalRate);
         log.info("previous total arrival rate from previous sampling {}", previoustotalArrivalRate);
         log.info("Math.abs((totalArrivalRate - currenttotalArrivalRate)) / doublesleep {}",
@@ -194,13 +179,11 @@ public class Controller implements Runnable {
         queryConsumerGroup();
         youMightWanttoScaleDynamically(totalArrivalRate);
 
-
          //youMightWanttoScale();
     }
 
 
     private static void youMightWanttoScaleDynamically (double totalArrivalRate) throws ExecutionException, InterruptedException {
-        log.info("Inside  youMightWanttoScaleDynamically");
         int size = consumerGroupDescriptionMap.get(Controller.CONSUMER_GROUP).members().size();
         log.info("current group size is {}", size);
 
@@ -215,16 +198,12 @@ public class Controller implements Runnable {
         }
 
 
-
-
         if (Duration.between(lastDownScaleDecision, Instant.now()).toSeconds() >= 15 ) {
             log.info("DownScaling logic, Down scale cool down has ended");
             downScaleLogicDynamic(totalArrivalRate, size);
         }else {
             log.info("Not checking  down scale logic, down scale cool down has not ended yet");
         }
-
-
     }
 
 
@@ -239,16 +218,13 @@ public class Controller implements Runnable {
             try (final KubernetesClient k8s = new DefaultKubernetesClient()) {
                 k8s.apps().deployments().inNamespace("default").withName("cons1persec").scale(size + 1);
 
-
                 log.info("Since  arrival rate {} is greater than  maximum consumption rate " +
                         "{} ,  I up scaled  by one ", totalArrivalRate , dynamicAverageMaxConsumptionRate);
 
                 lastDownScaleDecision = Instant.now();
                 lastUpScaleDecision = Instant.now();
-
                 return true;
             }
-
         }
         return false;
     }
@@ -262,19 +238,17 @@ public class Controller implements Runnable {
         dynamicAverageMaxConsumptionRate = dynamicTotalMaxConsumptionRate / (double)(size);
 
         log.info("dynamicAverageMaxConsumptionRate {}", dynamicAverageMaxConsumptionRate);
-        if ((totalArrivalRate ) < dynamicAverageMaxConsumptionRate) {
+        if (totalArrivalRate  < dynamicAverageMaxConsumptionRate) {
 
             log.info("since  arrival rate {} is lower than maximum consumption rate " +
                             " with size - 1  I down scaled  by one {}",
                     totalArrivalRate , dynamicAverageMaxConsumptionRate);
             try (final KubernetesClient k8s = new DefaultKubernetesClient()) {
-
                 int replicas = k8s.apps().deployments().inNamespace("default").withName("cons1persec").get().getSpec().getReplicas();
                 if (replicas > 1) {
                     k8s.apps().deployments().inNamespace("default").withName("cons1persec").scale(replicas - 1);
                     lastDownScaleDecision = Instant.now();
                     lastUpScaleDecision = Instant.now();
-
                 } else {
                     log.info("Not going to  down scale since replicas already one");
                 }
@@ -361,7 +335,6 @@ public class Controller implements Runnable {
 
     @Override
     public void run() {
-
         try {
             readEnvAndCrateAdminClient();
         } catch (ExecutionException e) {
@@ -384,7 +357,6 @@ public class Controller implements Runnable {
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
-
             log.info("Sleeping for {} seconds", sleep / 1000.0);
             try {
                 Thread.sleep(sleep);
@@ -396,7 +368,6 @@ public class Controller implements Runnable {
             log.info("End Iteration;");
             log.info("=============================================");
         }
-
     }
 }
 
