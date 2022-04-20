@@ -1,9 +1,7 @@
 
-import io.fabric8.kubernetes.api.model.ServiceAccount;
-import io.fabric8.kubernetes.api.model.ServiceAccountBuilder;
+
 import io.fabric8.kubernetes.client.DefaultKubernetesClient;
 import io.fabric8.kubernetes.client.KubernetesClient;
-import org.apache.kafka.clients.admin.MemberDescription;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -25,7 +23,8 @@ public class BinPackScaler {
     Instant lastScaleDownDecision;
 
 
-    public BinPackScaler(double dynamicTotalMaxConsumptionRate, double dynamicAverageMaxConsumptionRate, List<Partition> partitions, int currentCGsize) {
+    public BinPackScaler(double dynamicTotalMaxConsumptionRate, double dynamicAverageMaxConsumptionRate,
+                         List<Partition> partitions, int currentCGsize) {
         this.dynamicTotalMaxConsumptionRate = dynamicTotalMaxConsumptionRate;
         this.dynamicAverageMaxConsumptionRate = dynamicAverageMaxConsumptionRate;
         this.partitions = partitions;
@@ -41,11 +40,9 @@ public class BinPackScaler {
         List<Consumer> consumers = new ArrayList<>();
         int consumerCount = 0;
 
-         long maxLagCapacity;
+        long maxLagCapacity;
 
         maxLagCapacity = (long) (dynamicAverageMaxConsumptionRate * 5.0);
-
-
         consumers.add(new Consumer(maxLagCapacity, dynamicAverageMaxConsumptionRate));
 
         //if a certain partition has a lag higher than R Wmax set its lag to R*Wmax
@@ -63,20 +60,15 @@ public class BinPackScaler {
             log.info("partition {} has the following lag {}", partition.getId(), partition.getLag());
             if (partition.getArrivalRate() > dynamicAverageMaxConsumptionRate ) {
                 log.info("Since partition {} has lag {} higher than consumer capacity {}" +
-                        " we are truncating its lag", partition.getId(), partition.getArrivalRate(), dynamicAverageMaxConsumptionRate);
+                        " we are truncating its lag", partition.getId(), partition.getArrivalRate(),
+                        dynamicAverageMaxConsumptionRate);
                 partition.setArrivalRate(dynamicAverageMaxConsumptionRate);
             }
         }
 
 
-
-
-
         //start the bin pack FFD with sort
         Collections.sort(partitions, Collections.reverseOrder());
-
-
-
 
         Consumer consumer = null;
         for (Partition partition : partitions) {
@@ -91,7 +83,8 @@ public class BinPackScaler {
                 //we shall create a new consumer i.e., scale up
                 if (cons == consumers.get(consumers.size() - 1)) {
                     consumerCount++;
-                    consumer = new Consumer((long) (dynamicAverageMaxConsumptionRate * 5.0), dynamicAverageMaxConsumptionRate);
+                    consumer = new Consumer((long) (dynamicAverageMaxConsumptionRate * 5.0),
+                            dynamicAverageMaxConsumptionRate);
                     consumer.assignPartition(partition);
                 }
             }
@@ -102,7 +95,6 @@ public class BinPackScaler {
         }
 
         return consumers;
-
     }
 
 
@@ -152,7 +144,6 @@ public class BinPackScaler {
                     k8s.apps().deployments().inNamespace("default").withName("cons1persec").scale(neededsize);
                     log.info("I have upscaled you should have {}", neededsize);
                 }
-
             }
         }
     }

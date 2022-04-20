@@ -8,8 +8,6 @@ import java.util.List;
 
 public class AssignmentServer implements Runnable{
 
-
-
     private final int port;
     private final Server server;
 
@@ -50,9 +48,6 @@ public class AssignmentServer implements Runnable{
         }
     }
 
-
-
-
     @Override
     public void run() {
 
@@ -62,8 +57,6 @@ public class AssignmentServer implements Runnable{
         } catch (IOException | InterruptedException e) {
             e.printStackTrace();
         }
-
-
     }
 
 
@@ -72,30 +65,20 @@ public class AssignmentServer implements Runnable{
         public void getAssignment(AssignmentRequest request, StreamObserver<AssignmentResponse> responseObserver) {
             System.out.println(request.getRequest());
 
-
             List<PartitionGrpc> partitions = new ArrayList<>();
             PartitionGrpc p1 = PartitionGrpc.newBuilder().setArrivalRate(10).setId(1).setLag(500).build();
             PartitionGrpc p2 = PartitionGrpc.newBuilder().setArrivalRate(5.0).setId(2).setLag(250).build();
             PartitionGrpc p3 = PartitionGrpc.newBuilder().setArrivalRate(6.2).setId(3).setLag(490).build();
-
             partitions.add(p1);
             partitions.add(p2);
             partitions.add(p3);
 
-
             //Consumer c1= Consumer.newBuilder().setId(1).
-
             ConsumerGrpc c1= ConsumerGrpc.newBuilder().setId(1).addAssignedPartitions(p1).addAssignedPartitions(p2).build();
             ConsumerGrpc c2= ConsumerGrpc.newBuilder().setId(2).addAssignedPartitions(p3).build();
             responseObserver.onNext(AssignmentResponse.newBuilder().addConsumers(c1).addConsumers(c2).build());
             responseObserver.onCompleted();
-
             System.out.println("Sent Assignment to client");
-
-
         }
-
-
-
     }
 }

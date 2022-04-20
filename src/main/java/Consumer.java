@@ -1,7 +1,7 @@
 import java.util.ArrayList;
 
 public class Consumer {
-    private Long lagCapacity;
+    private final Long lagCapacity;
 
     public Consumer(Long lagCapacity, double arrivalCapacity) {
         this.lagCapacity = lagCapacity;
@@ -13,9 +13,7 @@ public class Consumer {
     }
 
     private double remainingArrivalCapacity;
-
     private ArrayList<Partition> assignedPartitions;
-
     private double arrivalCapacity;
 
     public Long getRemainingLagCapacity() {
@@ -25,7 +23,6 @@ public class Consumer {
     public void setRemainingLagCapacity(Long remaininglagcapacity) {
         this.remainingLagCapacity = remaininglagcapacity;
     }
-
     public ArrayList<Partition> getAssignedPartitions() {
         return assignedPartitions;
     }
@@ -44,14 +41,6 @@ public class Consumer {
         this.remainingArrivalCapacity = remainingArrivalCapacity;
     }
 
-
-
-
-
-
-
-
-
     public void  assignPartition(Partition partition) {
         assignedPartitions.add(partition);
         remainingLagCapacity -= partition.getLag();
@@ -68,8 +57,6 @@ public class Consumer {
                 ", remainingLagCapacity=" + remainingLagCapacity +
                 '}';
     }
-
-
 
     @Override
     public int hashCode() {
