@@ -13,11 +13,13 @@ import java.util.List;
 
 public class BinPackScaler {
 
-    private double dynamicTotalMaxConsumptionRate;
-    private double dynamicAverageMaxConsumptionRate;
+    private final double dynamicTotalMaxConsumptionRate;
+    private final double dynamicAverageMaxConsumptionRate;
+    private final double WSLA;
 
     private final List<Partition> partitions;
     private final int currentCGsize;
+
 
     Instant lastScaleUpDecision;
     Instant lastScaleDownDecision;
@@ -26,11 +28,14 @@ public class BinPackScaler {
 
 
     public BinPackScaler(double dynamicTotalMaxConsumptionRate, double dynamicAverageMaxConsumptionRate,
-                         List<Partition> partitions, int currentCGsize) {
+                         double wsla, List<Partition> partitions, int currentCGsize) {
         this.dynamicTotalMaxConsumptionRate = dynamicTotalMaxConsumptionRate;
         this.dynamicAverageMaxConsumptionRate = dynamicAverageMaxConsumptionRate;
+        WSLA = wsla;
         this.partitions = partitions;
         this.currentCGsize = currentCGsize;
+        lastScaleUpDecision =Controller.lastUpScaleDecision;
+        lastScaleDownDecision = Controller.lastDownScaleDecision;
     }
 
     private static final Logger log = LogManager.getLogger(Controller.class);
@@ -44,7 +49,7 @@ public class BinPackScaler {
 
         long maxLagCapacity;
 
-        maxLagCapacity = (long) (dynamicAverageMaxConsumptionRate * 5.0);
+        maxLagCapacity = (long) (dynamicAverageMaxConsumptionRate * WSLA);
         consumers.add(new Consumer(maxLagCapacity, dynamicAverageMaxConsumptionRate));
 
         //if a certain partition has a lag higher than R Wmax set its lag to R*Wmax
@@ -139,7 +144,7 @@ public class BinPackScaler {
 
         } else {
 
-            if (Duration.between(lastScaleDownDecision, Instant.now()).toSeconds() < 60) {
+            if (Duration.between(lastScaleDownDecision, Instant.now()).toSeconds() < 15) {
                 log.info("Scale down cooldown period has not elapsed yet not taking scale down decisions");
                 return;
             } else {

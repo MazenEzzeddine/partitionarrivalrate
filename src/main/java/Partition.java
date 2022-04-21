@@ -7,6 +7,9 @@ public class Partition {
     private Long currentLastOffset;
     private Long previousLastOffset;
 
+
+
+    //TODO is that really needed?
     public double getPreviousArrivalRate() {
         return previousArrivalRate;
     }
@@ -151,5 +154,7 @@ public class Partition {
         return result;
     }
 
-
+    //TODO add corresponding windows for  lag rate (d/dt lag(t)), and a function to return its average etc...
+    //TODO add corresponding window for rate of arrival rate, and a function to return the average rate of arrival rate
+    //TODO customize and externalize parameters such as window size and wherever applicable
 }

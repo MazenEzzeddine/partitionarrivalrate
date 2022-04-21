@@ -59,6 +59,8 @@ public class Controller implements Runnable {
     static double dynamicTotalMaxConsumptionRate =0.0;
     static double dynamicAverageMaxConsumptionRate = 0.0;
 
+    static double wsla = 5.0;
+
 
     private static void readEnvAndCrateAdminClient() throws ExecutionException, InterruptedException {
         sleep = Long.valueOf(System.getenv("SLEEP"));
@@ -188,7 +190,7 @@ public class Controller implements Runnable {
 
         dynamicAverageMaxConsumptionRate = dynamicTotalMaxConsumptionRate / (double)(size);
         BinPackScaler bpscaler =new BinPackScaler(dynamicTotalMaxConsumptionRate,dynamicAverageMaxConsumptionRate,
-                partitions, size);
+                wsla, partitions, size);
 
         bpscaler.scaleAsPerBinPack();
 

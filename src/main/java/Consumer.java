@@ -4,6 +4,11 @@ import java.util.List;
 public class Consumer {
     private final Long lagCapacity;
 
+    private double remainingArrivalCapacity;
+    private List<Partition> assignedPartitions;
+    private final double arrivalCapacity;
+    private Long remainingLagCapacity;
+
     public Consumer(Long lagCapacity, double arrivalCapacity) {
         this.lagCapacity = lagCapacity;
         this.arrivalCapacity = arrivalCapacity;
@@ -13,9 +18,7 @@ public class Consumer {
         assignedPartitions = new ArrayList<>();
     }
 
-    private double remainingArrivalCapacity;
-    private List<Partition> assignedPartitions;
-    private double arrivalCapacity;
+
 
     public Long getRemainingLagCapacity() {
         return remainingLagCapacity;
@@ -32,7 +35,7 @@ public class Consumer {
         this.assignedPartitions = assignedPartitions;
     }
 
-    private Long remainingLagCapacity;
+
 
     public double getRemainingArrivalCapacity() {
         return remainingArrivalCapacity;
@@ -41,6 +44,10 @@ public class Consumer {
     public void setRemainingArrivalCapacity(double remainingArrivalCapacity) {
         this.remainingArrivalCapacity = remainingArrivalCapacity;
     }
+
+
+    //TODO attention to when bin packing using average arrival rates or average lag
+    //TODO set remaining capacities accordingly
 
     public void  assignPartition(Partition partition) {
         assignedPartitions.add(partition);
@@ -72,4 +79,6 @@ public class Consumer {
         result = 31 * result + (remainingLagCapacity != null ? remainingLagCapacity.hashCode() : 0);
         return result;
     }
+
+
 }
