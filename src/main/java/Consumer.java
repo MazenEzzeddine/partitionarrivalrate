@@ -1,4 +1,5 @@
 import java.util.ArrayList;
+import java.util.List;
 
 public class Consumer {
     private final Long lagCapacity;
@@ -13,7 +14,7 @@ public class Consumer {
     }
 
     private double remainingArrivalCapacity;
-    private ArrayList<Partition> assignedPartitions;
+    private List<Partition> assignedPartitions;
     private double arrivalCapacity;
 
     public Long getRemainingLagCapacity() {
@@ -23,11 +24,11 @@ public class Consumer {
     public void setRemainingLagCapacity(Long remaininglagcapacity) {
         this.remainingLagCapacity = remaininglagcapacity;
     }
-    public ArrayList<Partition> getAssignedPartitions() {
+    public List<Partition> getAssignedPartitions() {
         return assignedPartitions;
     }
 
-    public void setAssignedPartitions(ArrayList<Partition> assignedPartitions) {
+    public void setAssignedPartitions(List<Partition> assignedPartitions) {
         this.assignedPartitions = assignedPartitions;
     }
 

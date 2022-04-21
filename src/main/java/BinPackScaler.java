@@ -22,6 +22,8 @@ public class BinPackScaler {
     Instant lastScaleUpDecision;
     Instant lastScaleDownDecision;
 
+    static List<Consumer> assignment;
+
 
     public BinPackScaler(double dynamicTotalMaxConsumptionRate, double dynamicAverageMaxConsumptionRate,
                          List<Partition> partitions, int currentCGsize) {
@@ -94,6 +96,8 @@ public class BinPackScaler {
             }
         }
 
+        assignment = consumers;
+
         return consumers;
     }
 
@@ -119,7 +123,7 @@ public class BinPackScaler {
             }*/
         } else if (replicasForscale > 0) {
             //checking for scale up coooldown
-            if (Duration.between(lastScaleUpDecision, Instant.now()).toSeconds() < 30) {
+            if (Duration.between(lastScaleUpDecision, Instant.now()).toSeconds() < 15) {
                 log.info("Scale up cooldown period has not elapsed yet not taking decisions");
                 return;
             } else {

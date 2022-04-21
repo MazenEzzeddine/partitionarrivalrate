@@ -175,8 +175,8 @@ public class Controller implements Runnable {
             }
         }
 
-        queryConsumerGroup();
-        youMightWanttoScaleDynamically(totalArrivalRate);
+        //queryConsumerGroup();
+        //youMightWanttoScaleDynamically(totalArrivalRate);
 
          //youMightWanttoScale();
     }

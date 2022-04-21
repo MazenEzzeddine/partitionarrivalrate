@@ -63,6 +63,8 @@ public class AssignmentServer implements Runnable{
     public static class AssignmentService extends AssignmentServiceGrpc.AssignmentServiceImplBase {
         @Override
         public void getAssignment(AssignmentRequest request, StreamObserver<AssignmentResponse> responseObserver) {
+
+
             System.out.println(request.getRequest());
 
             List<PartitionGrpc> partitions = new ArrayList<>();
@@ -77,6 +79,47 @@ public class AssignmentServer implements Runnable{
             ConsumerGrpc c1= ConsumerGrpc.newBuilder().setId(1).addAssignedPartitions(p1).addAssignedPartitions(p2).build();
             ConsumerGrpc c2= ConsumerGrpc.newBuilder().setId(2).addAssignedPartitions(p3).build();
             responseObserver.onNext(AssignmentResponse.newBuilder().addConsumers(c1).addConsumers(c2).build());
+            responseObserver.onCompleted();
+            System.out.println("Sent Assignment to client");
+        }
+    }
+
+    public static class AssignmentServiceDynamic extends AssignmentServiceGrpc.AssignmentServiceImplBase {
+        @Override
+        public void getAssignment(AssignmentRequest request, StreamObserver<AssignmentResponse> responseObserver) {
+
+            List<Partition> partitions1 = new ArrayList<Partition>();
+            partitions1.add(new Partition(0,100, 20.0));
+            partitions1.add(new Partition(1,100, 50.0));
+
+            List<Partition> partitions2 = new ArrayList<>();
+            partitions2.add(new Partition(2,50, 10.0));
+            partitions2.add(new Partition(3,50, 500.0));
+
+
+            Consumer c1 = new Consumer(500L, 100);
+                    c1.setAssignedPartitions(partitions1);
+
+            Consumer c2 = new Consumer(500L, 100);
+            c2.setAssignedPartitions(partitions1);
+
+
+            BinPackScaler.assignment.add(c1);
+            BinPackScaler.assignment.add(c2);
+
+
+            List<Consumer> assignment = BinPackScaler.assignment;
+            List<ConsumerGrpc> assignmentReply = new ArrayList<>(assignment.size());
+
+            for (Consumer cons : assignment) {
+                ConsumerGrpc consg  =  ConsumerGrpc.newBuilder().build();
+                for (Partition p : cons.getAssignedPartitions()) {
+                    consg.toBuilder().addAssignedPartitions(
+                            PartitionGrpc.newBuilder().setArrivalRate(p.getArrivalRate()).setId(p.getId()).setLag(p.getLag()).build());
+                }
+            }
+
+            responseObserver.onNext(AssignmentResponse.newBuilder().addAllConsumers(assignmentReply).build());
             responseObserver.onCompleted();
             System.out.println("Sent Assignment to client");
         }
