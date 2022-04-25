@@ -10,9 +10,7 @@ import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.TopicPartitionInfo;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hps.RateRequest;
-import org.hps.RateResponse;
-import org.hps.RateServiceGrpc;
+
 
 
 import java.time.Duration;
@@ -97,6 +95,13 @@ public class Controller implements Runnable {
            float rate = callForConsumptionRate(memberDescription.host());
             dynamicTotalMaxConsumptionRate += rate;
         }
+
+        dynamicAverageMaxConsumptionRate = dynamicTotalMaxConsumptionRate/
+                (float)consumerGroupDescriptionMap.get(Controller.CONSUMER_GROUP).members().size();
+
+        log.info("The total consumption rate of the CG is {}", dynamicTotalMaxConsumptionRate);
+        log.info("The average consumption rate of the CG is {}", dynamicAverageMaxConsumptionRate);
+
     }
 
 
@@ -150,34 +155,18 @@ public class Controller implements Runnable {
         long totallag = 0;
 
         for (Partition p : partitions) {
-            log.info(p.toString());
+            p.setArrivalRate((double) (p.getCurrentLastOffset() - p.getPreviousLastOffset()) / doublesleep);
             totalArrivalRate += (p.getCurrentLastOffset() - p.getPreviousLastOffset()) / doublesleep;
             totallag += p.getLag();
+            log.info(p.toString());
         }
 
         log.info("current totalArrivalRate from this iteration/sampling {}", totalArrivalRate);
         log.info("totallag {}", totallag);
 
-        /////////////check sampling issues//////////////
-        log.info("current total arrival rate from previous sampling {}", currenttotalArrivalRate);
-        log.info("previous total arrival rate from previous sampling {}", previoustotalArrivalRate);
-        log.info("Math.abs((totalArrivalRate - currenttotalArrivalRate)) / doublesleep {}",
-                (((totalArrivalRate - currenttotalArrivalRate)) / doublesleep));
 
 
-        if (Math.abs((totalArrivalRate - currenttotalArrivalRate)) / doublesleep > 20.0) {
-            log.info("Looks like sampling boundary issue");
-            log.info("ignoring this sample");
-        } else {
-            previoustotalArrivalRate = currenttotalArrivalRate;
-            currenttotalArrivalRate = totalArrivalRate;
-            for (Partition p : partitions) {
-                p.setPreviousArrivalRate(p.getArrivalRate());
-                p.setArrivalRate((double) (p.getCurrentLastOffset() - p.getPreviousLastOffset()) / doublesleep);
-            }
-        }
-
-        //queryConsumerGroup();
+        queryConsumerGroup();
         //youMightWanttoScaleDynamically(totalArrivalRate);
 
          //youMightWanttoScale();
@@ -385,6 +374,28 @@ public class Controller implements Runnable {
             log.info("End Iteration;");
             log.info("=============================================");
         }
+    }
+
+
+    private void samplingIssues(){
+        /////////////check sampling issues//////////////
+       /* log.info("current total arrival rate from previous sampling {}", currenttotalArrivalRate);
+        log.info("previous total arrival rate from previous sampling {}", previoustotalArrivalRate);
+        log.info("Math.abs((totalArrivalRate - currenttotalArrivalRate)) / doublesleep {}",
+                (((totalArrivalRate - currenttotalArrivalRate)) / doublesleep));*/
+
+
+       /* if (Math.abs((totalArrivalRate - currenttotalArrivalRate)) / doublesleep > 20.0) {
+            log.info("Looks like sampling boundary issue");
+            log.info("ignoring this sample");
+        } else {
+            previoustotalArrivalRate = currenttotalArrivalRate;
+            currenttotalArrivalRate = totalArrivalRate;
+            for (Partition p : partitions) {
+                p.setPreviousArrivalRate(p.getArrivalRate());
+                p.setArrivalRate((double) (p.getCurrentLastOffset() - p.getPreviousLastOffset()) / doublesleep);
+            }
+        }*/
     }
 }
 
