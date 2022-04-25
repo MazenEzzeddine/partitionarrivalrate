@@ -26,6 +26,8 @@ public class BinPackScaler {
 
     static List<Consumer> assignment;
 
+    boolean firstTime=true;
+
 
     public BinPackScaler(double dynamicTotalMaxConsumptionRate, double dynamicAverageMaxConsumptionRate,
                          double wsla, List<Partition> partitions, int currentCGsize) {
@@ -38,10 +40,12 @@ public class BinPackScaler {
         lastScaleDownDecision = Controller.lastDownScaleDecision;
     }
 
-    private static final Logger log = LogManager.getLogger(Controller.class);
+    private static final Logger log = LogManager.getLogger(BinPackScaler.class);
 
 
     private List<Consumer> binPackAndScale() {
+
+       //List<Partition>
 
         log.info("Inside binPackAndScale ");
         List<Consumer> consumers = new ArrayList<>();
@@ -50,11 +54,11 @@ public class BinPackScaler {
         long maxLagCapacity;
 
         maxLagCapacity = (long) (dynamicAverageMaxConsumptionRate * WSLA);
-        consumers.add(new Consumer(maxLagCapacity, dynamicAverageMaxConsumptionRate));
+        consumers.add(new Consumer(consumerCount, maxLagCapacity, dynamicAverageMaxConsumptionRate));
 
         //if a certain partition has a lag higher than R Wmax set its lag to R*Wmax
-        for (Partition partition : partitions) {
-            log.info("partition {} has the following lag {}", partition.getId(), partition.getLag());
+        /*for (Partition partition : partitions) {
+           // log.info("partition {} has the following lag {}", partition.getId(), partition.getLag());
             if (partition.getLag() > maxLagCapacity ) {
                 log.info("Since partition {} has lag {} higher than consumer capacity {}" +
                         " we are truncating its lag", partition.getId(), partition.getLag(), maxLagCapacity);
@@ -64,23 +68,28 @@ public class BinPackScaler {
 
         //if a certain partition has an arrival rate  higher than R  set its arrival rate  to R
         for (Partition partition : partitions) {
-            log.info("partition {} has the following lag {}", partition.getId(), partition.getLag());
+            //log.info("partition {} has the following lag {}", partition.getId(), partition.getLag());
             if (partition.getArrivalRate() > dynamicAverageMaxConsumptionRate ) {
                 log.info("Since partition {} has lag {} higher than consumer capacity {}" +
                         " we are truncating its lag", partition.getId(), partition.getArrivalRate(),
                         dynamicAverageMaxConsumptionRate);
                 partition.setArrivalRate(dynamicAverageMaxConsumptionRate);
             }
-        }
+        }*/
 
 
         //start the bin pack FFD with sort
         Collections.sort(partitions, Collections.reverseOrder());
+   /*     log.info("The sorted set of partitions {}");
+
+        for (Partition p: partitions) {
+            log.info(p.toString());
+        }*/
 
         Consumer consumer = null;
         for (Partition partition : partitions) {
             for (Consumer cons : consumers) {
-                if (cons.getRemainingLagCapacity() >= partition.getLag() &&
+                if (cons.getRemainingLagCapacity() > partition.getLag() &&
                         cons.getRemainingArrivalCapacity()> partition.getArrivalRate()) {
                     cons.assignPartition(partition);
                     // we are done with this partition, go to next
@@ -90,7 +99,7 @@ public class BinPackScaler {
                 //we shall create a new consumer i.e., scale up
                 if (cons == consumers.get(consumers.size() - 1)) {
                     consumerCount++;
-                    consumer = new Consumer((long) (dynamicAverageMaxConsumptionRate * 5.0),
+                    consumer = new Consumer(consumerCount, (long) (dynamicAverageMaxConsumptionRate * 5.0),
                             dynamicAverageMaxConsumptionRate);
                     consumer.assignPartition(partition);
                 }
@@ -101,6 +110,12 @@ public class BinPackScaler {
             }
         }
 
+        log.info(" The BP scaler recommended {}", consumers.size());
+
+        for(Consumer cons: consumers){
+            log.info(cons.toString());
+        }
+
         assignment = consumers;
 
         return consumers;
@@ -109,53 +124,63 @@ public class BinPackScaler {
 
     public void scaleAsPerBinPack() {
         //same number of consumers but different different assignment
+
+
+
+
+
         int currentsize = currentCGsize;
         log.info("Currently we have this number of consumers {}", currentsize);
         int neededsize = binPackAndScale().size();
         log.info("We currently need the following consumers (as per the bin pack) {}", neededsize);
 
 
-        int replicasForscale = neededsize - currentsize;
-        // but is the assignmenet the same
-        if (replicasForscale == 0) {
-            log.info("No need to autoscale");
-            /*if(!doesTheCurrentAssigmentViolateTheSLA()) {
+
+
+/*           int replicasForscale = neededsize - currentsize;
+           // but is the assignmenet the same
+           if (replicasForscale == 0) {
+               log.info("No need to autoscale");
+            *//*if(!doesTheCurrentAssigmentViolateTheSLA()) {
                 //with the same number of consumers if the current assignment does not violate the SLA
                 return;
             } else {
                 log.info("We have to enforce rebalance");
                 //TODO skipping it for now. (enforce rebalance)
-            }*/
-        } else if (replicasForscale > 0) {
-            //checking for scale up coooldown
-            if (Duration.between(lastScaleUpDecision, Instant.now()).toSeconds() < 15) {
-                log.info("Scale up cooldown period has not elapsed yet not taking decisions");
-                return;
-            } else {
-                log.info("We have to upscale by {}", replicasForscale);
-                log.info("Upscaling");
-                try (final KubernetesClient k8s = new DefaultKubernetesClient()) {
-                    k8s.apps().deployments().inNamespace("default").withName("cons1persec").scale(neededsize);
-                    log.info("I have upscaled you should have {}", neededsize);
-                }
-            }
-            lastScaleUpDecision = Instant.now();
-            lastScaleDownDecision = Instant.now();
+            }*//*
+           } else if (replicasForscale > 0) {
+               //checking for scale up coooldown
+               if (Duration.between(lastScaleUpDecision, Instant.now()).toSeconds() < 15) {
+                   log.info("Scale up cooldown period has not elapsed yet not taking decisions");
+                   return;
+               } else {
+                   log.info("We have to upscale by {}", replicasForscale);
+                   log.info("Upscaling");
+                   try (final KubernetesClient k8s = new DefaultKubernetesClient()) {
+                       k8s.apps().deployments().inNamespace("default").withName("cons1persec").scale(neededsize);
+                       log.info("I have upscaled you should have {}", neededsize);
+                       firstTime =false;
+                   }
+               }
+               lastScaleUpDecision = Instant.now();
+               lastScaleDownDecision = Instant.now();
 
-        } else {
+           } else {
 
-            if (Duration.between(lastScaleDownDecision, Instant.now()).toSeconds() < 15) {
-                log.info("Scale down cooldown period has not elapsed yet not taking scale down decisions");
-                return;
-            } else {
+               if (Duration.between(lastScaleDownDecision, Instant.now()).toSeconds() < 120) {
+                   log.info("Scale down cooldown period has not elapsed yet not taking scale down decisions");
+                   return;
+               } else {
 
-                try (final KubernetesClient k8s = new DefaultKubernetesClient()) {
-                    k8s.apps().deployments().inNamespace("default").withName("cons1persec").scale(neededsize);
-                    log.info("I have upscaled you should have {}", neededsize);
-                }
-            }
-        }
-    }
+                   try (final KubernetesClient k8s = new DefaultKubernetesClient()) {
+                       k8s.apps().deployments().inNamespace("default").withName("cons1persec").scale(neededsize);
+                       log.info("I have upscaled you should have {}", neededsize);
+                       firstTime=false;
+                   }
+               }
+           }*/
+       }
+
 
 }
 

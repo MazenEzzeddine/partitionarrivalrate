@@ -1,4 +1,4 @@
-public class Partition {
+public class Partition implements Comparable<Partition> {
 
     private int id;
     private long lag;
@@ -152,6 +152,11 @@ public class Partition {
         temp = Double.doubleToLongBits(arrivalRate);
         result = 31 * result + (int) (temp ^ (temp >>> 32));
         return result;
+    }
+
+    @Override
+    public int compareTo(Partition o) {
+        return Long.compare(lag, o.lag);
     }
 
     //TODO add corresponding windows for  lag rate (d/dt lag(t)), and a function to return its average etc...

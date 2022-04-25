@@ -8,10 +8,12 @@ public class Consumer {
     private List<Partition> assignedPartitions;
     private final double arrivalCapacity;
     private Long remainingLagCapacity;
+    private int id;
 
-    public Consumer(Long lagCapacity, double arrivalCapacity) {
+    public Consumer(int id, Long lagCapacity, double arrivalCapacity) {
         this.lagCapacity = lagCapacity;
         this.arrivalCapacity = arrivalCapacity;
+        this.id=id;
 
         this.remainingLagCapacity = lagCapacity;
         this.remainingArrivalCapacity = arrivalCapacity;

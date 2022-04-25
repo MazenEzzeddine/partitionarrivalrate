@@ -1,6 +1,8 @@
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.stub.StreamObserver;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -10,6 +12,9 @@ public class AssignmentServer implements Runnable{
 
     private final int port;
     private final Server server;
+
+    private static final Logger log = LogManager.getLogger(AssignmentServer.class);
+
 
     public AssignmentServer(int port) throws IOException {
         this(ServerBuilder.forPort(port), port);
@@ -65,7 +70,26 @@ public class AssignmentServer implements Runnable{
         public void getAssignment(AssignmentRequest request, StreamObserver<AssignmentResponse> responseObserver) {
 
 
-            System.out.println(request.getRequest());
+           /* System.out.println(request.getRequest());
+
+            List<Consumer> assignment = BinPackScaler.assignment;
+
+            log.info("The assignment is {}", assignment);
+
+
+            List<ConsumerGrpc> assignmentReply = new ArrayList<>(assignment.size());
+
+            for (Consumer cons : assignment) {
+                ConsumerGrpc consg  =  ConsumerGrpc.newBuilder().build();
+                for (Partition p : cons.getAssignedPartitions()) {
+                    consg.toBuilder().addAssignedPartitions(
+                            PartitionGrpc.newBuilder().setArrivalRate(p.getArrivalRate()).setId(p.getId()).setLag(p.getLag()).build());
+                }
+            }
+
+            responseObserver.onNext(AssignmentResponse.newBuilder().addAllConsumers(assignmentReply).build());
+            responseObserver.onCompleted();
+            System.out.println("Sent Assignment to client");*/
 
             List<PartitionGrpc> partitions = new ArrayList<>();
             PartitionGrpc p1 = PartitionGrpc.newBuilder().setArrivalRate(10).setId(0).setLag(500).build();
@@ -85,10 +109,10 @@ public class AssignmentServer implements Runnable{
 
 
             //Consumer c1= Consumer.newBuilder().setId(1).
-            ConsumerGrpc c1= ConsumerGrpc.newBuilder().setId(1).addAssignedPartitions(p1).addAssignedPartitions(p2).
-                    addAssignedPartitions(p3).build();
-            ConsumerGrpc c2= ConsumerGrpc.newBuilder().setId(2).addAssignedPartitions(p4).
-            addAssignedPartitions(p5).build();
+            ConsumerGrpc c1= ConsumerGrpc.newBuilder().setId(1).addAssignedPartitions(p1).addAssignedPartitions(p3).
+                    addAssignedPartitions(p4).build();
+            ConsumerGrpc c2= ConsumerGrpc.newBuilder().setId(2).addAssignedPartitions(p5).
+            addAssignedPartitions(p2).build();
             responseObserver.onNext(AssignmentResponse.newBuilder().addConsumers(c1).addConsumers(c2).build());
             responseObserver.onCompleted();
             System.out.println("Sent Assignment to client");
@@ -110,10 +134,10 @@ public class AssignmentServer implements Runnable{
 
 
 
-            Consumer c1 = new Consumer(500L, 100);
+            Consumer c1 = new Consumer(0,500L, 100);
                     c1.setAssignedPartitions(partitions1);
 
-            Consumer c2 = new Consumer(500L, 100);
+            Consumer c2 = new Consumer(1, 500L, 100);
             c2.setAssignedPartitions(partitions1);
 
 

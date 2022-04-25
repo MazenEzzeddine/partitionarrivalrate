@@ -167,6 +167,7 @@ public class Controller implements Runnable {
 
 
         queryConsumerGroup();
+        youMightWanttoScaleUsingBinPack();
         //youMightWanttoScaleDynamically(totalArrivalRate);
 
          //youMightWanttoScale();
@@ -175,13 +176,15 @@ public class Controller implements Runnable {
 
     private static void youMightWanttoScaleUsingBinPack(){
 
+        log.info("Calling the bin pack scaler");
+
         int size = consumerGroupDescriptionMap.get(Controller.CONSUMER_GROUP).members().size();
 
         dynamicAverageMaxConsumptionRate = dynamicTotalMaxConsumptionRate / (double)(size);
-        BinPackScaler bpscaler =new BinPackScaler(dynamicTotalMaxConsumptionRate,dynamicAverageMaxConsumptionRate,
+       BinPackScaler bpscaler =new BinPackScaler(dynamicTotalMaxConsumptionRate,dynamicAverageMaxConsumptionRate,
                 wsla, partitions, size);
 
-        bpscaler.scaleAsPerBinPack();
+      //  bpscaler.scaleAsPerBinPack();
 
     }
 
