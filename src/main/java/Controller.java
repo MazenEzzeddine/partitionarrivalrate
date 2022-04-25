@@ -213,7 +213,7 @@ public class Controller implements Runnable {
         consumers.add(new Consumer(consumerCount, maxLagCapacity, dynamicAverageMaxConsumptionRate));
 
         //if a certain partition has a lag higher than R Wmax set its lag to R*Wmax
-        for (Partition partition : partitions) {
+        for (Partition partition : parts) {
            // log.info("partition {} has the following lag {}", partition.getId(), partition.getLag());
             if (partition.getLag() > maxLagCapacity ) {
                 log.info("Since partition {} has lag {} higher than consumer capacity {}" +
@@ -223,7 +223,7 @@ public class Controller implements Runnable {
         }
 
         //if a certain partition has an arrival rate  higher than R  set its arrival rate  to R
-        for (Partition partition : partitions) {
+        for (Partition partition : parts) {
             //log.info("partition {} has the following lag {}", partition.getId(), partition.getLag());
             if (partition.getArrivalRate() > dynamicAverageMaxConsumptionRate ) {
                 log.info("Since partition {} has lag {} higher than consumer capacity {}" +

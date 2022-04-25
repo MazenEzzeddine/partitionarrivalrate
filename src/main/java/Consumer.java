@@ -59,8 +59,8 @@ public class Consumer {
 
     @Override
     public String toString() {
-        return "Consumer{" +
-                "lagCapacity=" + lagCapacity +
+        return "Consumer{" + "id="+ id +
+                ",  lagCapacity=" + lagCapacity +
                 ", remainingArrivalCapacity=" + remainingArrivalCapacity +
                 ", assignedPartitions=" + assignedPartitions +
                 ", arrivalCapacity=" + arrivalCapacity +
