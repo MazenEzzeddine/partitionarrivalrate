@@ -213,7 +213,7 @@ public class Controller implements Runnable {
         consumers.add(new Consumer(consumerCount, maxLagCapacity, dynamicAverageMaxConsumptionRate));
 
         //if a certain partition has a lag higher than R Wmax set its lag to R*Wmax
-        /*for (Partition partition : partitions) {
+        for (Partition partition : partitions) {
            // log.info("partition {} has the following lag {}", partition.getId(), partition.getLag());
             if (partition.getLag() > maxLagCapacity ) {
                 log.info("Since partition {} has lag {} higher than consumer capacity {}" +
@@ -231,7 +231,7 @@ public class Controller implements Runnable {
                         dynamicAverageMaxConsumptionRate);
                 partition.setArrivalRate(dynamicAverageMaxConsumptionRate);
             }
-        }*/
+        }
 
 
         //start the bin pack FFD with sort
