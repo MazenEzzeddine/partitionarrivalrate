@@ -70,28 +70,42 @@ public class AssignmentServer implements Runnable{
         public void getAssignment(AssignmentRequest request, StreamObserver<AssignmentResponse> responseObserver) {
 
 
-           /* System.out.println(request.getRequest());
+            System.out.println(request.getRequest());
 
-            List<Consumer> assignment = BinPackScaler.assignment;
+            List<Consumer> assignment = Controller.assignment;
 
             log.info("The assignment is {}", assignment);
+
 
 
             List<ConsumerGrpc> assignmentReply = new ArrayList<>(assignment.size());
 
             for (Consumer cons : assignment) {
-                ConsumerGrpc consg  =  ConsumerGrpc.newBuilder().build();
+                List<PartitionGrpc> pgrpclist = new ArrayList<>();
                 for (Partition p : cons.getAssignedPartitions()) {
-                    consg.toBuilder().addAssignedPartitions(
-                            PartitionGrpc.newBuilder().setArrivalRate(p.getArrivalRate()).setId(p.getId()).setLag(p.getLag()).build());
+                    log.info("partition {} is assigned to consumer {}", p.getId(), cons.getId());
+                   PartitionGrpc pgrpc =  PartitionGrpc.newBuilder().setId(p.getId()).build();
+                    pgrpclist.add(pgrpc);
                 }
+
+                ConsumerGrpc consg  =  ConsumerGrpc.newBuilder().setId(cons.getId()).addAllAssignedPartitions(pgrpclist).build();
+
+                assignmentReply.add(consg);
+            }
+
+            for(ConsumerGrpc cons : assignmentReply){
+                log.info("Consumer {} has the following partitions", cons.getId());
+                for(PartitionGrpc part : cons.getAssignedPartitionsList()){
+                    log.info("partition {}", part.getId());
+                }
+
             }
 
             responseObserver.onNext(AssignmentResponse.newBuilder().addAllConsumers(assignmentReply).build());
             responseObserver.onCompleted();
-            System.out.println("Sent Assignment to client");*/
+            System.out.println("Sent Assignment to client");
 
-            List<PartitionGrpc> partitions = new ArrayList<>();
+         /*   List<PartitionGrpc> partitions = new ArrayList<>();
             PartitionGrpc p1 = PartitionGrpc.newBuilder().setArrivalRate(10).setId(0).setLag(500).build();
             PartitionGrpc p2 = PartitionGrpc.newBuilder().setArrivalRate(5.0).setId(1).setLag(250).build();
             PartitionGrpc p3 = PartitionGrpc.newBuilder().setArrivalRate(6.2).setId(2).setLag(490).build();
@@ -114,8 +128,8 @@ public class AssignmentServer implements Runnable{
             ConsumerGrpc c2= ConsumerGrpc.newBuilder().setId(2).addAssignedPartitions(p5).
             addAssignedPartitions(p2).build();
             responseObserver.onNext(AssignmentResponse.newBuilder().addConsumers(c1).addConsumers(c2).build());
-            responseObserver.onCompleted();
-            System.out.println("Sent Assignment to client");
+            responseObserver.onCompleted();*/
+            //System.out.println("Sent Assignment to client");
         }
     }
 

@@ -29,6 +29,7 @@ public class Controller implements Runnable {
     public static AdminClient admin = null;
 
 
+
     static Long sleep;
     static double doublesleep;
     static String topic;
@@ -59,6 +60,13 @@ public class Controller implements Runnable {
 
     static double wsla = 5.0;
 
+    static List<Consumer> assignment;
+
+   static  Instant lastScaleUpDecision;
+    static Instant lastScaleDownDecision;
+
+    static boolean firstTime = true;
+
 
     private static void readEnvAndCrateAdminClient() throws ExecutionException, InterruptedException {
         sleep = Long.valueOf(System.getenv("SLEEP"));
@@ -72,6 +80,10 @@ public class Controller implements Runnable {
         admin = AdminClient.create(props);
         tdr = admin.describeTopics(Collections.singletonList(topic));
         td = tdr.values().get(topic).get();
+
+        lastScaleUpDecision = Instant.now();
+        lastScaleDownDecision = Instant.now();
+
 
 
         for (TopicPartitionInfo p : td.partitions()) {
@@ -182,7 +194,8 @@ public class Controller implements Runnable {
 
         dynamicAverageMaxConsumptionRate = dynamicTotalMaxConsumptionRate / (double)(size);
 
-        binPackAndScale();
+        //binPackAndScale();
+        scaleAsPerBinPack(size);
 
 
       /* BinPackScaler bpscaler =new BinPackScaler(dynamicTotalMaxConsumptionRate,dynamicAverageMaxConsumptionRate,
@@ -192,7 +205,73 @@ public class Controller implements Runnable {
 
     }
 
-    private static  void  binPackAndScale() {
+
+    public static void scaleAsPerBinPack(int currentsize) {
+        //same number of consumers but different different assignment
+
+        if(!firstTime)
+            return;
+
+
+
+
+
+        log.info("Currently we have this number of consumers {}", currentsize);
+        int neededsize = binPackAndScale();
+        log.info("We currently need the following consumers (as per the bin pack) {}", neededsize);
+
+
+
+
+           int replicasForscale = neededsize - currentsize;
+           // but is the assignmenet the same
+           if (replicasForscale == 0) {
+               log.info("No need to autoscale");
+          /*  if(!doesTheCurrentAssigmentViolateTheSLA()) {
+                //with the same number of consumers if the current assignment does not violate the SLA
+                return;
+            } else {
+                log.info("We have to enforce rebalance");
+                //TODO skipping it for now. (enforce rebalance)
+            }*/
+           } else if (replicasForscale > 0) {
+               //checking for scale up coooldown
+               if (Duration.between(lastScaleUpDecision, Instant.now()).toSeconds() < 60) {
+                   log.info("Scale up cooldown period has not elapsed yet not taking decisions");
+                   return;
+               } else {
+                   log.info("We have to upscale by {}", replicasForscale);
+                   log.info("Upscaling");
+                   try (final KubernetesClient k8s = new DefaultKubernetesClient()) {
+                       k8s.apps().deployments().inNamespace("default").withName("cons1persec").scale(neededsize);
+                       log.info("I have upscaled you should have {}", neededsize);
+                       firstTime =false;
+                   }
+               }
+               lastScaleUpDecision = Instant.now();
+               lastScaleDownDecision = Instant.now();
+
+           } else {
+
+               if (Duration.between(lastScaleDownDecision, Instant.now()).toSeconds() < 60) {
+                   log.info("Scale down cooldown period has not elapsed yet not taking scale down decisions");
+                   return;
+               } else {
+
+                   try (final KubernetesClient k8s = new DefaultKubernetesClient()) {
+                       k8s.apps().deployments().inNamespace("default").withName("cons1persec").scale(neededsize);
+                       log.info("I have upscaled you should have {}", neededsize);
+                       firstTime=false;
+
+                       lastScaleUpDecision = Instant.now();
+                       lastScaleDownDecision = Instant.now();
+                   }
+               }
+           }
+    }
+
+
+    private static  int  binPackAndScale() {
 
         //List<Partition>
 
@@ -272,6 +351,11 @@ public class Controller implements Runnable {
             log.info(cons.toString());
         }
 
+        assignment = consumers;
+
+
+        return consumers.size();
+
         //assignment = consumers;
 
     }
@@ -284,7 +368,7 @@ public class Controller implements Runnable {
         int size = consumerGroupDescriptionMap.get(Controller.CONSUMER_GROUP).members().size();
         log.info("current group size is {}", size);
 
-        if (Duration.between(lastUpScaleDecision, Instant.now()).toSeconds() >= 15 ) {
+        if (Duration.between(lastUpScaleDecision, Instant.now()).toSeconds() >= 30 ) {
             log.info("Upscale logic, Up scale cool down has ended");
 
             if (upScaleLogicDynamic(totalArrivalRate, size)) {
@@ -295,7 +379,7 @@ public class Controller implements Runnable {
         }
 
 
-        if (Duration.between(lastDownScaleDecision, Instant.now()).toSeconds() >= 15 ) {
+        if (Duration.between(lastDownScaleDecision, Instant.now()).toSeconds() >= 30 ) {
             log.info("DownScaling logic, Down scale cool down has ended");
             downScaleLogicDynamic(totalArrivalRate, size);
         }else {

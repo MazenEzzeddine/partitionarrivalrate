@@ -8,6 +8,11 @@ public class Consumer {
     private List<Partition> assignedPartitions;
     private final double arrivalCapacity;
     private Long remainingLagCapacity;
+
+    public int getId() {
+        return id;
+    }
+
     private int id;
 
     public Consumer(int id, Long lagCapacity, double arrivalCapacity) {
