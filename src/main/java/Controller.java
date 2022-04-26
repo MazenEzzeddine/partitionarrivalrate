@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 
-
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
@@ -25,9 +24,7 @@ public class Controller implements Runnable {
     private static final Logger log = LogManager.getLogger(Controller.class);
 
     public static String CONSUMER_GROUP;
-    public static int numberOfPartitions;
     public static AdminClient admin = null;
-
 
 
     static Long sleep;
@@ -37,7 +34,6 @@ public class Controller implements Runnable {
     static Long poll;
     static String BOOTSTRAP_SERVERS;
     static Map<TopicPartition, OffsetAndMetadata> committedOffsets;
-
 
 
     static Map<String, ConsumerGroupDescription> consumerGroupDescriptionMap;
@@ -53,16 +49,14 @@ public class Controller implements Runnable {
     static ArrayList<Partition> partitions = new ArrayList<>();
 
 
-    static double currenttotalArrivalRate = 0.0;
-    static double previoustotalArrivalRate = 0.0;
-    static double dynamicTotalMaxConsumptionRate =0.0;
+    static double dynamicTotalMaxConsumptionRate = 0.0;
     static double dynamicAverageMaxConsumptionRate = 0.0;
 
     static double wsla = 5.0;
 
     static List<Consumer> assignment;
 
-   static  Instant lastScaleUpDecision;
+    static Instant lastScaleUpDecision;
     static Instant lastScaleDownDecision;
 
     static boolean firstTime = true;
@@ -85,7 +79,6 @@ public class Controller implements Runnable {
         lastScaleDownDecision = Instant.now();
 
 
-
         for (TopicPartitionInfo p : td.partitions()) {
             partitions.add(new Partition(p.partition(), 0, 0));
         }
@@ -101,15 +94,15 @@ public class Controller implements Runnable {
 
         consumerGroupDescriptionMap = futureOfDescribeConsumerGroupsResult.get();
 
-        dynamicTotalMaxConsumptionRate =0.0;
+        dynamicTotalMaxConsumptionRate = 0.0;
         for (MemberDescription memberDescription : consumerGroupDescriptionMap.get(Controller.CONSUMER_GROUP).members()) {
             log.info("Calling the consumer {} for its consumption rate ", memberDescription.host());
-           float rate = callForConsumptionRate(memberDescription.host());
+            float rate = callForConsumptionRate(memberDescription.host());
             dynamicTotalMaxConsumptionRate += rate;
         }
 
-        dynamicAverageMaxConsumptionRate = dynamicTotalMaxConsumptionRate/
-                (float)consumerGroupDescriptionMap.get(Controller.CONSUMER_GROUP).members().size();
+        dynamicAverageMaxConsumptionRate = dynamicTotalMaxConsumptionRate /
+                (float) consumerGroupDescriptionMap.get(Controller.CONSUMER_GROUP).members().size();
 
         log.info("The total consumption rate of the CG is {}", dynamicTotalMaxConsumptionRate);
         log.info("The average consumption rate of the CG is {}", dynamicAverageMaxConsumptionRate);
@@ -177,56 +170,35 @@ public class Controller implements Runnable {
         log.info("totallag {}", totallag);
 
 
-
         queryConsumerGroup();
         youMightWanttoScaleUsingBinPack();
-        //youMightWanttoScaleDynamically(totalArrivalRate);
 
-         //youMightWanttoScale();
     }
 
 
-    private static void youMightWanttoScaleUsingBinPack(){
+    private static void youMightWanttoScaleUsingBinPack() {
 
         log.info("Calling the bin pack scaler");
-
         int size = consumerGroupDescriptionMap.get(Controller.CONSUMER_GROUP).members().size();
-
-        dynamicAverageMaxConsumptionRate = dynamicTotalMaxConsumptionRate / (double)(size);
-
+        dynamicAverageMaxConsumptionRate = dynamicTotalMaxConsumptionRate / (double) (size);
         //binPackAndScale();
         scaleAsPerBinPack(size);
-
-
-      /* BinPackScaler bpscaler =new BinPackScaler(dynamicTotalMaxConsumptionRate,dynamicAverageMaxConsumptionRate,
-                wsla, partitions, size);*/
-
-      //  bpscaler.scaleAsPerBinPack();
-
     }
 
 
     public static void scaleAsPerBinPack(int currentsize) {
         //same number of consumers but different different assignment
-
-        if(!firstTime)
+        if (!firstTime)
             return;
-
-
-
-
 
         log.info("Currently we have this number of consumers {}", currentsize);
         int neededsize = binPackAndScale();
         log.info("We currently need the following consumers (as per the bin pack) {}", neededsize);
 
-
-
-
-           int replicasForscale = neededsize - currentsize;
-           // but is the assignmenet the same
-           if (replicasForscale == 0) {
-               log.info("No need to autoscale");
+        int replicasForscale = neededsize - currentsize;
+        // but is the assignmenet the same
+        if (replicasForscale == 0) {
+            log.info("No need to autoscale");
           /*  if(!doesTheCurrentAssigmentViolateTheSLA()) {
                 //with the same number of consumers if the current assignment does not violate the SLA
                 return;
@@ -234,67 +206,63 @@ public class Controller implements Runnable {
                 log.info("We have to enforce rebalance");
                 //TODO skipping it for now. (enforce rebalance)
             }*/
-           } else if (replicasForscale > 0) {
-               //checking for scale up coooldown
-               if (Duration.between(lastScaleUpDecision, Instant.now()).toSeconds() < 60) {
-                   log.info("Scale up cooldown period has not elapsed yet not taking decisions");
-                   return;
-               } else {
-                   log.info("We have to upscale by {}", replicasForscale);
-                   log.info("Upscaling");
-                   try (final KubernetesClient k8s = new DefaultKubernetesClient()) {
-                       k8s.apps().deployments().inNamespace("default").withName("cons1persec").scale(neededsize);
-                       log.info("I have upscaled you should have {}", neededsize);
-                       firstTime =false;
-                   }
-               }
-               lastScaleUpDecision = Instant.now();
-               lastScaleDownDecision = Instant.now();
+        } else if (replicasForscale > 0) {
+            //checking for scale up coooldown
+            if (Duration.between(lastScaleUpDecision, Instant.now()).toSeconds() < 60) {
+                log.info("Scale up cooldown period has not elapsed yet not taking decisions");
+                return;
+            } else {
+                log.info("We have to upscale by {}", replicasForscale);
+                log.info("Upscaling");
+                try (final KubernetesClient k8s = new DefaultKubernetesClient()) {
+                    k8s.apps().deployments().inNamespace("default").withName("cons1persec").scale(neededsize);
+                    log.info("I have upscaled you should have {}", neededsize);
+                    firstTime = false;
+                }
+            }
+            lastScaleUpDecision = Instant.now();
+            lastScaleDownDecision = Instant.now();
 
-           } else {
+        } else {
 
-               if (Duration.between(lastScaleDownDecision, Instant.now()).toSeconds() < 60) {
-                   log.info("Scale down cooldown period has not elapsed yet not taking scale down decisions");
-                   return;
-               } else {
+            if (Duration.between(lastScaleDownDecision, Instant.now()).toSeconds() < 60) {
+                log.info("Scale down cooldown period has not elapsed yet not taking scale down decisions");
+                return;
+            } else {
 
-                   try (final KubernetesClient k8s = new DefaultKubernetesClient()) {
-                       k8s.apps().deployments().inNamespace("default").withName("cons1persec").scale(neededsize);
-                       log.info("I have upscaled you should have {}", neededsize);
-                       firstTime=false;
+                try (final KubernetesClient k8s = new DefaultKubernetesClient()) {
+                    k8s.apps().deployments().inNamespace("default").withName("cons1persec").scale(neededsize);
+                    log.info("I have upscaled you should have {}", neededsize);
+                    firstTime = false;
 
-                       lastScaleUpDecision = Instant.now();
-                       lastScaleDownDecision = Instant.now();
-                   }
-               }
-           }
+                    lastScaleUpDecision = Instant.now();
+                    lastScaleDownDecision = Instant.now();
+                }
+            }
+        }
     }
 
 
-    private static  int  binPackAndScale() {
-
-        //List<Partition>
+    private static int binPackAndScale() {
 
         log.info("Inside binPackAndScale ");
         List<Consumer> consumers = new ArrayList<>();
         int consumerCount = 0;
-
         List<Partition> parts = new ArrayList<>();
 
         for (Partition partition : partitions) {
             parts.add(new Partition(partition.getId(), partition.getLag(), partition.getArrivalRate()));
         }
 
-
         long maxLagCapacity;
 
-        maxLagCapacity = (long) (dynamicAverageMaxConsumptionRate * 5.0);
+        maxLagCapacity = (long) (dynamicAverageMaxConsumptionRate * wsla);
         consumers.add(new Consumer(consumerCount, maxLagCapacity, dynamicAverageMaxConsumptionRate));
 
         //if a certain partition has a lag higher than R Wmax set its lag to R*Wmax
         for (Partition partition : parts) {
-           // log.info("partition {} has the following lag {}", partition.getId(), partition.getLag());
-            if (partition.getLag() > maxLagCapacity ) {
+            // log.info("partition {} has the following lag {}", partition.getId(), partition.getLag());
+            if (partition.getLag() > maxLagCapacity) {
                 log.info("Since partition {} has lag {} higher than consumer capacity {}" +
                         " we are truncating its lag", partition.getId(), partition.getLag(), maxLagCapacity);
                 partition.setLag(maxLagCapacity);
@@ -304,9 +272,9 @@ public class Controller implements Runnable {
         //if a certain partition has an arrival rate  higher than R  set its arrival rate  to R
         for (Partition partition : parts) {
             //log.info("partition {} has the following lag {}", partition.getId(), partition.getLag());
-            if (partition.getArrivalRate() > dynamicAverageMaxConsumptionRate ) {
+            if (partition.getArrivalRate() > dynamicAverageMaxConsumptionRate) {
                 log.info("Since partition {} has lag {} higher than consumer capacity {}" +
-                        " we are truncating its lag", partition.getId(), partition.getArrivalRate(),
+                                " we are truncating its lag", partition.getId(), partition.getArrivalRate(),
                         dynamicAverageMaxConsumptionRate);
                 partition.setArrivalRate(dynamicAverageMaxConsumptionRate);
             }
@@ -315,17 +283,12 @@ public class Controller implements Runnable {
 
         //start the bin pack FFD with sort
         Collections.sort(parts, Collections.reverseOrder());
-   /*     log.info("The sorted set of partitions {}");
-
-        for (Partition p: partitions) {
-            log.info(p.toString());
-        }*/
 
         Consumer consumer = null;
         for (Partition partition : parts) {
             for (Consumer cons : consumers) {
                 if (cons.getRemainingLagCapacity() > partition.getLag() &&
-                        cons.getRemainingArrivalCapacity()> partition.getArrivalRate()) {
+                        cons.getRemainingArrivalCapacity() > partition.getArrivalRate()) {
                     cons.assignPartition(partition);
                     // we are done with this partition, go to next
                     break;
@@ -334,7 +297,7 @@ public class Controller implements Runnable {
                 //we shall create a new consumer i.e., scale up
                 if (cons == consumers.get(consumers.size() - 1)) {
                     consumerCount++;
-                    consumer = new Consumer(consumerCount, (long) (dynamicAverageMaxConsumptionRate * 5.0),
+                    consumer = new Consumer(consumerCount, (long) (dynamicAverageMaxConsumptionRate * wsla),
                             dynamicAverageMaxConsumptionRate);
                     consumer.assignPartition(partition);
                 }
@@ -347,172 +310,14 @@ public class Controller implements Runnable {
 
         log.info(" The BP scaler recommended {}", consumers.size());
 
-        for(Consumer cons: consumers){
+        for (Consumer cons : consumers) {
             log.info(cons.toString());
         }
-
         assignment = consumers;
-
-
         return consumers.size();
 
-        //assignment = consumers;
-
     }
 
-
-
-
-
-    private static void youMightWanttoScaleDynamically (double totalArrivalRate) throws ExecutionException, InterruptedException {
-        int size = consumerGroupDescriptionMap.get(Controller.CONSUMER_GROUP).members().size();
-        log.info("current group size is {}", size);
-
-        if (Duration.between(lastUpScaleDecision, Instant.now()).toSeconds() >= 30 ) {
-            log.info("Upscale logic, Up scale cool down has ended");
-
-            if (upScaleLogicDynamic(totalArrivalRate, size)) {
-                return;
-            }
-        } else {
-            log.info("Not checking  upscale logic, Up scale cool down has not ended yet");
-        }
-
-
-        if (Duration.between(lastDownScaleDecision, Instant.now()).toSeconds() >= 30 ) {
-            log.info("DownScaling logic, Down scale cool down has ended");
-            downScaleLogicDynamic(totalArrivalRate, size);
-        }else {
-            log.info("Not checking  down scale logic, down scale cool down has not ended yet");
-        }
-    }
-
-
-
-    private static boolean upScaleLogicDynamic(double totalArrivalRate, int size) {
-
-        dynamicAverageMaxConsumptionRate = dynamicTotalMaxConsumptionRate / (double)(size);
-        log.info("dynamicAverageMaxConsumptionRate {}", dynamicAverageMaxConsumptionRate);
-        if (totalArrivalRate > dynamicAverageMaxConsumptionRate) {
-            // log.info("Consumers are less than nb partition we can scale");
-
-            try (final KubernetesClient k8s = new DefaultKubernetesClient()) {
-                k8s.apps().deployments().inNamespace("default").withName("cons1persec").scale(size + 1);
-
-                log.info("Since  arrival rate {} is greater than  maximum consumption rate " +
-                        "{} ,  I up scaled  by one ", totalArrivalRate , dynamicAverageMaxConsumptionRate);
-
-                lastDownScaleDecision = Instant.now();
-                lastUpScaleDecision = Instant.now();
-                return true;
-            }
-        }
-        return false;
-    }
-
-
-
-
-    private static void downScaleLogicDynamic(double totalArrivalRate, int size) {
-
-        if(size == 1) return;
-        dynamicAverageMaxConsumptionRate = dynamicTotalMaxConsumptionRate / (double)(size);
-
-        log.info("dynamicAverageMaxConsumptionRate {}", dynamicAverageMaxConsumptionRate);
-        if (totalArrivalRate  < dynamicAverageMaxConsumptionRate) {
-
-            log.info("since  arrival rate {} is lower than maximum consumption rate " +
-                            " with size - 1  I down scaled  by one {}",
-                    totalArrivalRate , dynamicAverageMaxConsumptionRate);
-            try (final KubernetesClient k8s = new DefaultKubernetesClient()) {
-                int replicas = k8s.apps().deployments().inNamespace("default").withName("cons1persec").get().getSpec().getReplicas();
-                if (replicas > 1) {
-                    k8s.apps().deployments().inNamespace("default").withName("cons1persec").scale(replicas - 1);
-                    lastDownScaleDecision = Instant.now();
-                    lastUpScaleDecision = Instant.now();
-                } else {
-                    log.info("Not going to  down scale since replicas already one");
-                }
-            }
-        }
-    }
-
-
-    private static void youMightWanttoScale() throws ExecutionException, InterruptedException {
-        log.info("Inside you youMightWanttoScale");
-
-
-        if (Duration.between(lastUpScaleDecision, Instant.now()).toSeconds() >= 15 &&
-                Duration.between(lastDownScaleDecision, Instant.now()).toSeconds() >= 15) {
-            queryConsumerGroup();
-
-        }
-
-
-        if (Duration.between(lastUpScaleDecision, Instant.now()).toSeconds() >= 15 ) {
-            log.info("Upscale logic, Up scale cool down has ended");
-
-
-            upScaleLogic();
-            //why not returning
-        } else {
-            log.info("Not checking  upscale logic, Up scale cool down has not ended yet");
-        }
-
-
-        if (Duration.between(lastDownScaleDecision, Instant.now()).toSeconds() >= 15 ) {
-            log.info("DownScaling logic, Down scale cool down has ended");
-            downScaleLogic();
-        }else {
-            log.info("Not checking  down scale logic, down scale cool down has not ended yet");
-        }
-    }
-
-
-    private static void upScaleLogic() throws ExecutionException, InterruptedException {
-        int size = consumerGroupDescriptionMap.get(Controller.CONSUMER_GROUP).members().size();
-        log.info("curent group size is {}", size);
-
-        if (currenttotalArrivalRate  > size *poll) {
-            log.info("Consumers are less than nb partition we can scale");
-
-            try (final KubernetesClient k8s = new DefaultKubernetesClient()) {
-                k8s.apps().deployments().inNamespace("default").withName("cons1persec").scale(size + 1);
-
-
-                log.info("Since  arrival rate {} is greater than  maximum consumption rate " +
-                        "{} ,  I up scaled  by one ", currenttotalArrivalRate , size * poll);
-            }
-
-            lastUpScaleDecision = Instant.now();
-            lastDownScaleDecision = Instant.now();
-        }
-    }
-
-
-
-
-    private static void downScaleLogic() throws ExecutionException, InterruptedException {
-        int size = consumerGroupDescriptionMap.get(Controller.CONSUMER_GROUP).members().size();
-        if ((currenttotalArrivalRate) < (size - 1) * poll) {
-
-            log.info("since  arrival rate {} is lower than maximum consumption rate " +
-                            " with size - 1  I down scaled  by one {}",
-                    currenttotalArrivalRate , size * poll);
-            try (final KubernetesClient k8s = new DefaultKubernetesClient()) {
-
-                int replicas = k8s.apps().deployments().inNamespace("default").withName("cons1persec").get().getSpec().getReplicas();
-                if (replicas > 1) {
-                    k8s.apps().deployments().inNamespace("default").withName("cons1persec").scale(replicas - 1);
-                    lastDownScaleDecision = Instant.now();
-                    lastUpScaleDecision = Instant.now();
-
-                } else {
-                    log.info("Not going to  down scale since replicas already one");
-                }
-            }
-        }
-    }
 
     @Override
     public void run() {
@@ -552,33 +357,10 @@ public class Controller implements Runnable {
     }
 
 
-    private void samplingIssues(){
-        /////////////check sampling issues//////////////
-       /* log.info("current total arrival rate from previous sampling {}", currenttotalArrivalRate);
-        log.info("previous total arrival rate from previous sampling {}", previoustotalArrivalRate);
-        log.info("Math.abs((totalArrivalRate - currenttotalArrivalRate)) / doublesleep {}",
-                (((totalArrivalRate - currenttotalArrivalRate)) / doublesleep));*/
 
-
-       /* if (Math.abs((totalArrivalRate - currenttotalArrivalRate)) / doublesleep > 20.0) {
-            log.info("Looks like sampling boundary issue");
-            log.info("ignoring this sample");
-        } else {
-            previoustotalArrivalRate = currenttotalArrivalRate;
-            currenttotalArrivalRate = totalArrivalRate;
-            for (Partition p : partitions) {
-                p.setPreviousArrivalRate(p.getArrivalRate());
-                p.setArrivalRate((double) (p.getCurrentLastOffset() - p.getPreviousLastOffset()) / doublesleep);
-            }
-        }*/
-    }
 
 
     /////////////////////////////////try the old bin pack//////////////////////////////////////////////
-
-
-
-
 
 
     //////////////////////////////////////////////////////////////////////////////
