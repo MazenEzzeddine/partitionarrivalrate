@@ -188,8 +188,8 @@ public class Controller implements Runnable {
 
     public static void scaleAsPerBinPack(int currentsize) {
         //same number of consumers but different different assignment
-        if (!firstTime)
-            return;
+      /*  if (!firstTime)
+            return;*/
 
         log.info("Currently we have this number of consumers {}", currentsize);
         int neededsize = binPackAndScale();
@@ -208,7 +208,7 @@ public class Controller implements Runnable {
             }*/
         } else if (replicasForscale > 0) {
             //checking for scale up coooldown
-            if (Duration.between(lastScaleUpDecision, Instant.now()).toSeconds() < 60) {
+            if (Duration.between(lastScaleUpDecision, Instant.now()).toSeconds() < 30) {
                 log.info("Scale up cooldown period has not elapsed yet not taking decisions");
                 return;
             } else {
@@ -225,7 +225,7 @@ public class Controller implements Runnable {
 
         } else {
 
-            if (Duration.between(lastScaleDownDecision, Instant.now()).toSeconds() < 60) {
+            if (Duration.between(lastScaleDownDecision, Instant.now()).toSeconds() < 30) {
                 log.info("Scale down cooldown period has not elapsed yet not taking scale down decisions");
                 return;
             } else {
