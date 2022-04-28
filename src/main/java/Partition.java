@@ -30,6 +30,10 @@ public class Partition implements Comparable<Partition> {
     }
 
     //private Long[] offsetWindow = new Long[4] ;
+
+    //TODO externlize windown length and add wondows for
+    //TODO rate of arrival rate d/dt(arrival rate)
+    // TODO and window for the lag rate d/dt (lag)
     private double[] arrivalRateWindow = new double[4];
     private Long[] lagWindow = new Long[4];
 

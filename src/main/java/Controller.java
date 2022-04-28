@@ -208,6 +208,7 @@ public class Controller implements Runnable {
             }*/
         } else if (replicasForscale > 0) {
             //checking for scale up coooldown
+            //TODO externalize these cool down
             if (Duration.between(lastScaleUpDecision, Instant.now()).toSeconds() < 30) {
                 log.info("Scale up cooldown period has not elapsed yet not taking decisions");
                 return;
@@ -217,7 +218,6 @@ public class Controller implements Runnable {
                 try (final KubernetesClient k8s = new DefaultKubernetesClient()) {
                     k8s.apps().deployments().inNamespace("default").withName("cons1persec").scale(neededsize);
                     log.info("I have upscaled you should have {}", neededsize);
-                    firstTime = false;
                 }
             }
             lastScaleUpDecision = Instant.now();
@@ -287,8 +287,14 @@ public class Controller implements Runnable {
         Consumer consumer = null;
         for (Partition partition : parts) {
             for (Consumer cons : consumers) {
-                if (cons.getRemainingLagCapacity() > partition.getLag() &&
-                        cons.getRemainingArrivalCapacity() > partition.getArrivalRate()) {
+               /* if (cons.getRemainingLagCapacity() > partition.getLag() &&
+                        cons.getRemainingArrivalCapacity() > partition.getArrivalRate()) {*/
+
+                    //////
+                //TODO externalize these choices on the inout to the FFD bin pack
+                   if (cons.getRemainingLagCapacity() >   partition.getAverageLag() &&
+                            cons.getRemainingArrivalCapacity() > partition.getArrivalRate()) {
+                    /////
                     cons.assignPartition(partition);
                     // we are done with this partition, go to next
                     break;
