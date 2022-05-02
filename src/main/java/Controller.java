@@ -104,8 +104,8 @@ public class Controller implements Runnable {
         dynamicAverageMaxConsumptionRate = dynamicTotalMaxConsumptionRate /
                 (float) consumerGroupDescriptionMap.get(Controller.CONSUMER_GROUP).members().size();
 
-        log.info("The total consumption rate of the CG is {}", dynamicTotalMaxConsumptionRate);
-        log.info("The average consumption rate of the CG is {}", dynamicAverageMaxConsumptionRate);
+        log.info("The total consumption rate of the CG is {}", String.format("%.2f",dynamicTotalMaxConsumptionRate));
+        log.info("The average consumption rate of the CG is {}", String.format("%.2f", dynamicAverageMaxConsumptionRate));
 
     }
 
@@ -120,7 +120,7 @@ public class Controller implements Runnable {
                 .build();
         log.info("connected to server {}", host);
         RateResponse rateResponse = rateServiceBlockingStub.consumptionRate(rateRequest);
-        log.info("Received response on the rate: " + rateResponse.getRate());
+        log.info("Received response on the rate: " + String.format("%.2f",rateResponse.getRate()));
         managedChannel.shutdown();
         return rateResponse.getRate();
     }
@@ -164,9 +164,10 @@ public class Controller implements Runnable {
             totalArrivalRate += (p.getCurrentLastOffset() - p.getPreviousLastOffset()) / doublesleep;
             totallag += p.getLag();
             log.info(p.toString());
+            log.info(p.printPartitionRates());
         }
 
-        log.info("current totalArrivalRate from this iteration/sampling {}", totalArrivalRate);
+        log.info("current totalArrivalRate from this iteration/sampling {}", String.format("%.2f",totalArrivalRate));
         log.info("totallag {}", totallag);
 
 
@@ -214,10 +215,9 @@ public class Controller implements Runnable {
                 return;
             } else {
                 log.info("We have to upscale by {}", replicasForscale);
-                log.info("Upscaling");
                 try (final KubernetesClient k8s = new DefaultKubernetesClient()) {
                     k8s.apps().deployments().inNamespace("default").withName("cons1persec").scale(neededsize);
-                    log.info("I have upscaled you should have {}", neededsize);
+                    log.info("I have Upscaled you should have {}", neededsize);
                 }
             }
             lastScaleUpDecision = Instant.now();
@@ -232,7 +232,7 @@ public class Controller implements Runnable {
 
                 try (final KubernetesClient k8s = new DefaultKubernetesClient()) {
                     k8s.apps().deployments().inNamespace("default").withName("cons1persec").scale(neededsize);
-                    log.info("I have upscaled you should have {}", neededsize);
+                    log.info("I have Downscaled you should have {}", neededsize);
                     firstTime = false;
 
                     lastScaleUpDecision = Instant.now();
@@ -269,13 +269,15 @@ public class Controller implements Runnable {
             }
         }
 
+
+
         //if a certain partition has an arrival rate  higher than R  set its arrival rate  to R
         for (Partition partition : parts) {
             //log.info("partition {} has the following lag {}", partition.getId(), partition.getLag());
             if (partition.getArrivalRate() > dynamicAverageMaxConsumptionRate) {
                 log.info("Since partition {} has lag {} higher than consumer capacity {}" +
-                                " we are truncating its lag", partition.getId(), partition.getArrivalRate(),
-                        dynamicAverageMaxConsumptionRate);
+                                " we are truncating its lag", partition.getId(),  String.format("%.2f",  partition.getArrivalRate()),
+                        String.format("%.2f", partition.getArrivalRate()));
                 partition.setArrivalRate(dynamicAverageMaxConsumptionRate);
             }
         }

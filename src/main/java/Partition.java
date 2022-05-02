@@ -37,6 +37,12 @@ public class Partition implements Comparable<Partition> {
     private double[] arrivalRateWindow = new double[4];
     private Long[] lagWindow = new Long[4];
 
+    private double[] rateForarrivalRateWindow = new double[4];
+
+    private double[] rateForLagWindow = new double[4];
+
+
+
     public Long getCurrentLastOffset() {
         return currentLastOffset;
     }
@@ -64,6 +70,10 @@ public class Partition implements Comparable<Partition> {
             //offsetWindow[i] = 0L;
             arrivalRateWindow[i] = 0.0;
             lagWindow[i]=0L;
+
+            rateForarrivalRateWindow[i] = 0.0;
+            rateForLagWindow[i]=0.0;
+
         }
     }
 
@@ -103,9 +113,12 @@ public class Partition implements Comparable<Partition> {
 
         for(int i=2; i>=0; i--){
             lagWindow[i+1] = lagWindow[i];
+            rateForLagWindow[i+1] =rateForLagWindow[i];
         }
 
         lagWindow[0] = lag;
+        rateForLagWindow[0] = (double)(lagWindow[0]-lagWindow[1])/Controller.doublesleep;
+
     }
 
     public double getArrivalRate() {
@@ -117,20 +130,60 @@ public class Partition implements Comparable<Partition> {
 
         for(int i=2; i>=0; i--){
             arrivalRateWindow[i+1] = arrivalRateWindow[i];
+            rateForarrivalRateWindow[i+1] = rateForarrivalRateWindow[i];
         }
 
         arrivalRateWindow[0] = arrivalRate;
+        rateForarrivalRateWindow[0]= (double)(arrivalRateWindow[0] - arrivalRateWindow[1])/Controller.doublesleep;
+    }
+
+    public String printPartitionRates(){
+
+        return "Partition{" +
+                "id= " + id +
+                ", rateForarrivalRate(instanenous)=" +  String.format("%.2f",rateForarrivalRateWindow[0]) +
+                ", rateForarrivalRate(window average)=" +  String.format("%.2f",getAverageRateForArrivalRate()) +
+                ", rateForLag(instanenous)=" +  String.format("%.2f",rateForLagWindow[0]) +
+                ", rateForLag(window average)=" +  String.format("%.2f", getAverageRateForLag()) +
+                        '}';
+    }
+
+
+
+
+
+
+    private double getAverageRateForLag() {
+
+        double averageRateForLag =0.0;
+        for(int i=0; i<4; i++) {
+            //offsetWindow[i] = 0L;
+            averageRateForLag += rateForLagWindow[i];
+        }
+        return averageRateForLag/4.0;
+
+
+    }
+
+    private double getAverageRateForArrivalRate() {
+
+        double averageRateForArrivalRate =0.0;
+        for(int i=0; i<4; i++) {
+            //offsetWindow[i] = 0L;
+            averageRateForArrivalRate += rateForarrivalRateWindow[i];
+        }
+        return averageRateForArrivalRate/4.0;
     }
 
 
     @Override
     public String toString() {
         return "Partition{" +
-                "id=" + id +
-                ", lag=" + lag +
-                ", arrivalRate=" + arrivalRate +
-                ", averageArrivalRate=" + getAverageArrivalRate() +
-                ", averageLag=" + getAverageLag() +
+                "id= " + id +
+                ", lag= " + lag +
+                ", arrivalRate= " +  String.format("%.2f",arrivalRate) +
+                ", averageArrivalRate= " +  String.format("%.2f",getAverageArrivalRate()) +
+                ", averageLag= " +  String.format("%.2f",getAverageLag()) +
         '}';
     }
 

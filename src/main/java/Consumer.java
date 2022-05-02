@@ -65,10 +65,10 @@ public class Consumer {
     @Override
     public String toString() {
         return "Consumer{" + "id="+ id +
-                ",  lagCapacity=" + lagCapacity +
-                ", remainingArrivalCapacity=" + remainingArrivalCapacity +
+                ",  lagCapacity=" +lagCapacity +
+                ", remainingArrivalCapacity=" + String.format("%.2f",remainingArrivalCapacity) +
                 ", assignedPartitions=" + assignedPartitions +
-                ", arrivalCapacity=" + arrivalCapacity +
+                ", arrivalCapacity=" + String.format("%.2f",arrivalCapacity) +
                 ", remainingLagCapacity=" + remainingLagCapacity +
                 '}';
     }
